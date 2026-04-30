@@ -1,0 +1,17 @@
+# Object name aliases (Korean/English → canonical name)
+aliases:
+  Apple:
+    - 사과
+    - apple
+  Banana:
+    - 바나나
+    - banana
+  Kiwi:
+    - 키위
+    - kiwi
+  Orange:
+    - 오렌지
+    - orange
+  Pear:
+    - 배
+    - pear

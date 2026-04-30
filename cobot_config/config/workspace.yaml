@@ -1,0 +1,8 @@
+# Safe workspace boundaries in robot base frame (mm)
+workspace:
+  x_min: 200.0
+  x_max: 600.0
+  y_min: -350.0
+  y_max: 350.0
+  z_min: 0.0
+  z_max: 400.0

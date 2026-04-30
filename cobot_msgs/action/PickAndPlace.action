@@ -1,0 +1,12 @@
+# Goal
+string target_label         # object to pick
+geometry_msgs/Pose pick_pose    # pick position in base frame
+geometry_msgs/Pose place_pose   # place position in base frame
+---
+# Result
+bool success
+string message
+---
+# Feedback
+string current_phase        # approaching, gripping, lifting, placing, done
+float32 progress            # 0.0 ~ 1.0

@@ -1,0 +1,5 @@
+# Hand-eye calibration settings
+calibration:
+  matrix_file: T_gripper2camera.npy
+  depth_offset: -5.0   # mm
+  min_depth: 2.0        # mm

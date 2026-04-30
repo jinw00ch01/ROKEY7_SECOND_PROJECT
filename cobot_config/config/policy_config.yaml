@@ -1,0 +1,31 @@
+# Policy definitions for 6-slot distribution
+policies:
+  health_mix:
+    keyword: 건강
+    slots:
+      - Apple
+      - Banana
+      - Kiwi
+      - Orange
+      - Pear
+      - Apple
+
+  balanced:
+    keyword: 골고루
+    slots:
+      - Apple
+      - Banana
+      - Kiwi
+      - Orange
+      - Pear
+      - Banana
+
+  default:
+    keyword: default
+    slots:
+      - Apple
+      - Apple
+      - Banana
+      - Banana
+      - Orange
+      - Orange
