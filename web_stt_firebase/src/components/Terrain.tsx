@@ -1,7 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import type { RobotMode } from "./types";
+import type { RobotMode } from "../lib/types";
 
 type Props = {
   mode: RobotMode;
@@ -118,6 +118,13 @@ function getVertex(
 export function Terrain({ mode }: Props) {
   const meshRef = useRef<THREE.Mesh>(null);
   const linesRef = useRef<THREE.LineSegments>(null);
+  const lineBuffers = useMemo(
+    () => ({
+      positions: new Float32Array(LINE_VERTEX_COUNT * 3),
+      colors: new Float32Array(LINE_VERTEX_COUNT * 3),
+    }),
+    [],
+  );
   const reusable = useMemo(
     () => ({
       a: new THREE.Vector3(),
@@ -134,16 +141,6 @@ export function Terrain({ mode }: Props) {
     }),
     [],
   );
-
-  const lineGeometry = useMemo(() => {
-    const geometry = new THREE.BufferGeometry();
-    const positions = new Float32Array(LINE_VERTEX_COUNT * 3);
-    const colors = new Float32Array(LINE_VERTEX_COUNT * 3);
-    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    geometry.setDrawRange(0, LINE_VERTEX_COUNT);
-    return geometry;
-  }, []);
 
   useFrame(({ clock }) => {
     if (!meshRef.current || !linesRef.current) return;
@@ -171,6 +168,7 @@ export function Terrain({ mode }: Props) {
     position.needsUpdate = true;
     geometry.computeVertexNormals();
 
+    const lineGeometry = linesRef.current.geometry;
     const linePosition = lineGeometry.attributes.position as THREE.BufferAttribute;
     const lineColor = lineGeometry.attributes.color as THREE.BufferAttribute;
     let lineVertex = 0;
@@ -255,7 +253,17 @@ export function Terrain({ mode }: Props) {
           side={THREE.DoubleSide}
         />
       </mesh>
-      <lineSegments ref={linesRef} geometry={lineGeometry}>
+      <lineSegments ref={linesRef}>
+        <bufferGeometry drawRange={{ start: 0, count: LINE_VERTEX_COUNT }}>
+          <bufferAttribute
+            attach="attributes-position"
+            args={[lineBuffers.positions, 3]}
+          />
+          <bufferAttribute
+            attach="attributes-color"
+            args={[lineBuffers.colors, 3]}
+          />
+        </bufferGeometry>
         <lineBasicMaterial
           vertexColors
           transparent

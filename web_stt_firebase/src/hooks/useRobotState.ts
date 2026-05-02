@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "./firebase";
-import type { RobotState } from "./types";
+import { db } from "../lib/firebase";
+import type { RobotState } from "../lib/types";
 
 const defaultState: RobotState = {
   mode: "idle",

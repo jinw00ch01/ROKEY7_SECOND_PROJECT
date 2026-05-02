@@ -1,7 +1,7 @@
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
-import { Terrain } from "./Terrain";
-import { useRobotState } from "./useRobotState";
+import { Terrain } from "./components/Terrain";
+import { useRobotState } from "./hooks/useRobotState";
 
 export default function App() {
   const robotState = useRobotState();
