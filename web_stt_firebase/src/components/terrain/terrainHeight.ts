@@ -1,23 +1,24 @@
-import * as THREE from "three";
+import type * as THREE from "three";
 import type { RobotMode } from "../../lib/types";
 import { perlinNoise } from "./perlinNoise";
 import { VERTICES_PER_SIDE } from "./terrainConstants";
 
 export function getModeIntensity(robotMode: RobotMode) {
-  if (robotMode === "wake_detected" || robotMode === "listening") return 1.25;
-  if (robotMode === "processing") return 1.55;
-  return 0.75;
+  if (robotMode === "wake_detected") return 1.05;
+  if (robotMode === "listening") return 1.45;
+  if (robotMode === "transcribing") return 1.95;
+  if (robotMode === "processing") return 2.35;
+  if (robotMode === "error") return 2.1;
+  return 0.65;
 }
 
-export function getCommandWaveScale(commandText: string) {
-  const commandLevel = Number.parseInt(commandText.trim(), 10);
-
-  if (!Number.isInteger(commandLevel) || commandLevel < 1 || commandLevel > 5) {
-    return 1;
-  }
-
-  // Prototype command levels: 1 is calm, 5 is the largest wave response.
-  return THREE.MathUtils.mapLinear(commandLevel, 1, 5, 0.55, 5.55);
+export function getVoiceWaveScale(robotMode: RobotMode) {
+  if (robotMode === "wake_detected") return 1.1;
+  if (robotMode === "listening") return 1.85;
+  if (robotMode === "transcribing") return 2.7;
+  if (robotMode === "processing") return 3.45;
+  if (robotMode === "error") return 3.1;
+  return 0.75;
 }
 
 export function getVertexIndex(gridX: number, gridY: number) {

@@ -4,6 +4,7 @@ export type RobotMode =
   | "idle"
   | "wake_detected"
   | "listening"
+  | "transcribing"
   | "processing"
   | "speaking"
   | "error";

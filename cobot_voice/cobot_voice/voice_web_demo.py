@@ -60,6 +60,9 @@ class VoiceWebDemo:
             merge=True,
         )
 
+    def set_state(self, **fields):
+        self._update_state(**fields)
+
     def process_text(self, text: str):
         clean_text = text.strip()
         self._update_state(
@@ -79,6 +82,7 @@ class VoiceWebDemo:
             targets=targets,
         )
         print(f"Parsed action={action}, targets={targets}")
+        return action, targets
 
     def run_once(self):
         if self.stt is None or self.mic is None or self.wakeup is None:
@@ -105,7 +109,12 @@ class VoiceWebDemo:
                     self.mic.close_stream()
 
                     self._update_state(mode="listening", wakeWordDetected=True)
-                    text = self.stt.speech2text()
+                    text = self.stt.speech2text(
+                        status_callback=lambda mode: self._update_state(
+                            mode=mode,
+                            wakeWordDetected=True,
+                        )
+                    )
                     self.process_text(text)
                     break
         finally:

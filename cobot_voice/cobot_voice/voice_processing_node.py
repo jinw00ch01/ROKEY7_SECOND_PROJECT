@@ -57,7 +57,7 @@ class VoiceProcessingNode(Node):
                     self.mic.close_stream()
 
                     self._publish_status("listening")
-                    text = self.stt.speech2text()
+                    text = self.stt.speech2text(status_callback=self._publish_status)
                     self._publish_status("processing")
                     self.get_logger().info(f"STT result: {text}")
 

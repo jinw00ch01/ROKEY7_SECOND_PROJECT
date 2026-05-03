@@ -2,6 +2,7 @@ import { OrbitControls } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { useEffect } from "react";
 import { Terrain } from "./components/Terrain";
+import { useBrowserVoiceCommand } from "./hooks/useBrowserVoiceCommand";
 import { useKeyboardCommand } from "./hooks/useKeyboardCommand";
 import { useRobotState } from "./hooks/useRobotState";
 
@@ -22,7 +23,25 @@ function FixedCamera() {
 export default function App() {
   const { robotState, connection, errorMessage } = useRobotState();
   const { colorCommand, keyboardCommand } = useKeyboardCommand();
-  const activeCommand = keyboardCommand || robotState.commandText;
+  const browserVoice = useBrowserVoiceCommand();
+  const activeCommand = robotState.commandText || keyboardCommand;
+
+  useEffect(() => {
+    const hasCompletedCommand =
+      robotState.mode === "idle" &&
+      (robotState.commandText || robotState.parsedAction || robotState.targets?.length);
+
+    if (browserVoice.isActive && hasCompletedCommand) {
+      browserVoice.stop();
+    }
+  }, [
+    browserVoice.isActive,
+    browserVoice.stop,
+    robotState.commandText,
+    robotState.mode,
+    robotState.parsedAction,
+    robotState.targets?.length,
+  ]);
 
   return (
     <div
@@ -41,7 +60,6 @@ export default function App() {
         <Terrain
           colorCommand={colorCommand}
           mode={robotState.mode}
-          commandText={activeCommand}
         />
         <OrbitControls target={TERRAIN_VIEW_TARGET} />
       </Canvas>
@@ -66,6 +84,52 @@ export default function App() {
         <p>Targets: {robotState.targets?.join(", ") || "-"}</p>
         {errorMessage ? <p>Error: {errorMessage}</p> : null}
         <p>Color: {colorCommand.toUpperCase()}</p>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 8,
+            marginTop: 12,
+            pointerEvents: "auto",
+          }}
+        >
+          <button
+            disabled={browserVoice.isActive}
+            onClick={browserVoice.start}
+            style={{
+              background: "rgba(235, 248, 255, 0.92)",
+              border: 0,
+              borderRadius: 6,
+              color: "#050505",
+              cursor: browserVoice.isActive ? "default" : "pointer",
+              fontSize: 14,
+              fontWeight: 700,
+              padding: "8px 12px",
+            }}
+            type="button"
+          >
+            Start Python Voice
+          </button>
+          <button
+            disabled={!browserVoice.isActive}
+            onClick={browserVoice.stop}
+            style={{
+              background: "rgba(5, 5, 5, 0.62)",
+              border: "1px solid rgba(235, 248, 255, 0.5)",
+              borderRadius: 6,
+              color: "rgba(235, 248, 255, 0.92)",
+              cursor: browserVoice.isActive ? "pointer" : "default",
+              fontSize: 14,
+              fontWeight: 700,
+              padding: "8px 12px",
+            }}
+            type="button"
+          >
+            Stop
+          </button>
+        </div>
+        <p>Voice bridge: {browserVoice.phase}</p>
+        {browserVoice.errorMessage ? <p>Voice error: {browserVoice.errorMessage}</p> : null}
       </div>
     </div>
   );
