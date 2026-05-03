@@ -20,7 +20,7 @@ function FixedCamera() {
 }
 
 export default function App() {
-  const robotState = useRobotState();
+  const { robotState, connection, errorMessage } = useRobotState();
   const { colorCommand, keyboardCommand } = useKeyboardCommand();
   const activeCommand = keyboardCommand || robotState.commandText;
 
@@ -59,8 +59,12 @@ export default function App() {
         }}
       >
         <h1 style={{ margin: 0, fontSize: 28, color: "inherit" }}>LOKI</h1>
+        <p>Firebase: {connection}</p>
         <p>Status: {robotState.mode}</p>
         <p>Command: {activeCommand || "-"}</p>
+        <p>Action: {robotState.parsedAction || "-"}</p>
+        <p>Targets: {robotState.targets?.join(", ") || "-"}</p>
+        {errorMessage ? <p>Error: {errorMessage}</p> : null}
         <p>Color: {colorCommand.toUpperCase()}</p>
       </div>
     </div>

@@ -12,7 +12,7 @@ PROMPT_CONTENT = """
 - home: 홈, 원점, home, 초기위치, 돌아가 등
 
 <견과류 리스트>
-호두(walnut), 아몬드(almond), 캐슈넛(cashew), 피스타치오(pistachio), 마카다미아(macadamia), 건포도(raisin)
+호두(walnut), 아몬드(almond), 캐슈넛(cashew), 피스타치오(pistachio)
 
 <출력 형식>
 첫 줄: action (sort, stop, home 중 하나)
