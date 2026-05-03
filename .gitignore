@@ -12,3 +12,7 @@ __pycache__/
 build/
 install/
 log/
+
+# Local editor and debug artifacts
+.vscode/
+*.log
