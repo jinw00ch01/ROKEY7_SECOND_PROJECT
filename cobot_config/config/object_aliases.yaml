@@ -1,17 +1,25 @@
 # Object name aliases (Korean/English → canonical name)
 aliases:
-  Apple:
-    - 사과
-    - apple
-  Banana:
-    - 바나나
-    - banana
-  Kiwi:
-    - 키위
-    - kiwi
-  Orange:
-    - 오렌지
-    - orange
-  Pear:
-    - 배
-    - pear
+  walnut:
+    - 호두
+    - walnuts
+    - walnut
+  almond:
+    - 아몬드
+    - almonds
+    - almond
+  cashew:
+    - 캐슈넛
+    - cashews
+    - cashew
+  pistachio:
+    - 피스타치오
+    - pistachios
+    - pistachio
+  macadamia:
+    - 마카다미아
+    - macadamia
+  raisin:
+    - 건포도
+    - raisins
+    - raisin
