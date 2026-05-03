@@ -3,12 +3,13 @@ import cv2
 import json
 import rclpy
 import DR_init
+from datetime import datetime
 
 # 로봇 설정
 ROBOT_ID = "dsr01"
 ROBOT_MODEL = "m0609"
 VELOCITY, ACC = 60, 60
-DEVICE_NUMBER = 4
+DEVICE_NUMBER = 4 # 각자 노트북에 맞는 DEVICE_NUMBER가 다름, 수정할것
 
 DR_init.__dsr__id = ROBOT_ID
 DR_init.__dsr__model = ROBOT_MODEL
@@ -82,7 +83,8 @@ def main(args=None):
 
             if cv2.waitKey(1) & 0xFF == ord("q"):
                 pos = get_current_posx()[0]
-                file_name = f"{pos[0]}_{pos[1]}_{pos[2]}.jpg"
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                file_name = f"{timestamp}_{pos[0]}_{pos[1]}_{pos[2]}.jpg"
 
                 # 현재 위치 기반 이미지 저장
                 cv2.imwrite(os.path.join(source_path, file_name), frame)

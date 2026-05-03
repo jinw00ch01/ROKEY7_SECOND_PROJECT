@@ -12,6 +12,7 @@ __pycache__/
 build/
 install/
 log/
+requirement/
 
 # Local editor and debug artifacts
 .vscode/
