@@ -1,4 +1,4 @@
-export const TERRAIN_SIZE = 12;
+export const TERRAIN_SIZE = 24;
 export const SEGMENTS = 56;
 export const VERTICES_PER_SIDE = SEGMENTS + 1;
 export const CURVE_STEPS = 5;

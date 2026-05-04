@@ -12,6 +12,7 @@ class WebVoiceBridge:
         self.audio_demo = None
         self.audio_thread = None
         self.audio_lock = threading.Lock()
+        self.audio_requested = False
 
     def set_state(self, payload):
         self.demo.set_state(
@@ -38,6 +39,7 @@ class WebVoiceBridge:
 
     def start_audio_workflow(self):
         with self.audio_lock:
+            self.audio_requested = True
             if self.audio_thread and self.audio_thread.is_alive():
                 return {"ok": True, "running": True}
 
@@ -45,11 +47,23 @@ class WebVoiceBridge:
             self.audio_thread.start()
             return {"ok": True, "running": True}
 
+    def stop_audio_workflow(self):
+        with self.audio_lock:
+            self.audio_requested = False
+            if self.audio_demo is not None:
+                self.audio_demo.stop()
+        return {"ok": True, "running": False}
+
     def _run_audio_workflow(self):
         try:
             if self.audio_demo is None:
                 self.audio_demo = VoiceWebDemo(enable_audio=True)
-            self.audio_demo.run_once()
+
+            while True:
+                with self.audio_lock:
+                    if not self.audio_requested:
+                        break
+                self.audio_demo.run_once()
         except Exception as exc:
             print(f"Audio workflow failed: {exc}")
             self.demo.set_state(
@@ -59,6 +73,9 @@ class WebVoiceBridge:
                 parsedAction="",
                 targets=[],
             )
+        finally:
+            with self.audio_lock:
+                self.audio_requested = False
 
 
 def make_handler(bridge):
@@ -97,6 +114,8 @@ def make_handler(bridge):
                     response = bridge.process_command(payload)
                 elif self.path == "/voice-audio/start":
                     response = bridge.start_audio_workflow()
+                elif self.path == "/voice-audio/stop":
+                    response = bridge.stop_audio_workflow()
                 else:
                     self._send_json(404, {"ok": False, "error": "not found"})
                     return

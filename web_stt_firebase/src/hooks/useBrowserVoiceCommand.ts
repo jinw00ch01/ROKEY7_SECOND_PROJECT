@@ -35,7 +35,17 @@ export function useBrowserVoiceCommand() {
     }
   }, []);
 
-  const stop = useCallback(() => {
+  const stop = useCallback(async () => {
+    setErrorMessage("");
+
+    try {
+      await postJson("/voice-audio/stop");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : String(error));
+      setPhase("error");
+      return;
+    }
+
     setPhase("idle");
   }, []);
 

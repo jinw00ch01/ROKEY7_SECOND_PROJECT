@@ -7,7 +7,7 @@ export function getModeIntensity(robotMode: RobotMode) {
   if (robotMode === "wake_detected") return 1.05;
   if (robotMode === "listening") return 1.45;
   if (robotMode === "transcribing") return 1.95;
-  if (robotMode === "processing") return 2.35;
+  if (robotMode === "processing") return 2.00;
   if (robotMode === "error") return 2.1;
   return 0.65;
 }

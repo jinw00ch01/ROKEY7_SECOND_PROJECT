@@ -32,7 +32,13 @@ type TerrainProps = {
 };
 
 function isColorCommand(value: string): value is ColorCommand {
-  return value === "q" || value === "w" || value === "e" || value === "r";
+  return (
+    value === "q" ||
+    value === "w" ||
+    value === "e" ||
+    value === "r" ||
+    value === "t"
+  );
 }
 
 export function Terrain({ colorCommand, mode }: TerrainProps) {

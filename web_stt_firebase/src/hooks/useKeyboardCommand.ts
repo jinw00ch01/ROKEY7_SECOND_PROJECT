@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 const COMMAND_KEYS = new Set(["1", "2", "3", "4", "5"]);
-const COLOR_KEYS = new Set(["q", "w", "e", "r"]);
+const COLOR_KEYS = new Set(["q", "w", "e", "r", "t"]);
 
 export function useKeyboardCommand() {
   const [keyboardCommand, setKeyboardCommand] = useState("");

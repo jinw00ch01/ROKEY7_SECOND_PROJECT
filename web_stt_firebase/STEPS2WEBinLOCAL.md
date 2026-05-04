@@ -21,9 +21,10 @@
   Keyboard controls:
 
   - 1 to 5: change wave size
-  - q: wave blue
-  - w: lava red
-  - e: Matrix green
-  - r: golden brown
+  - q: none / idle
+  - w: almond / red
+  - e: pistachio / green
+  - r: cashew / yellow
+  - t: walnut / purple
 
   You can stop the server with Ctrl+C in the terminal.

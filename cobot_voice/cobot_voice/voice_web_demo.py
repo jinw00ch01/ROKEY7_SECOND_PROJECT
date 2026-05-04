@@ -1,6 +1,10 @@
 import argparse
 import os
+import time
 from datetime import datetime, timezone
+
+
+ROBOT_MOTION_SECONDS = 5.0
 
 
 class VoiceWebDemo:
@@ -63,6 +67,9 @@ class VoiceWebDemo:
     def set_state(self, **fields):
         self._update_state(**fields)
 
+    def stop(self):
+        self._running = False
+
     def process_text(self, text: str):
         clean_text = text.strip()
         self._update_state(
@@ -75,12 +82,21 @@ class VoiceWebDemo:
 
         action, targets = self.extractor.extract(clean_text)
         self._update_state(
-            mode="idle",
+            mode="processing" if action == "sort" and targets else "idle",
             wakeWordDetected=False,
             commandText=clean_text,
             parsedAction=action,
             targets=targets,
         )
+        if action == "sort" and targets:
+            time.sleep(ROBOT_MOTION_SECONDS)
+            self._update_state(
+                mode="idle",
+                wakeWordDetected=False,
+                commandText=clean_text,
+                parsedAction=action,
+                targets=[],
+            )
         print(f"Parsed action={action}, targets={targets}")
         return action, targets
 

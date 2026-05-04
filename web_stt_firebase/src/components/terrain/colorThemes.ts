@@ -1,6 +1,6 @@
 import * as THREE from "three";
 
-export type ColorCommand = "q" | "w" | "e" | "r";
+export type ColorCommand = "q" | "w" | "e" | "r" | "t";
 
 export type TerrainColorTheme = {
   surfaceColor: THREE.Color;
@@ -64,6 +64,16 @@ export const colorThemes: Record<ColorCommand, TerrainColorTheme> = {
     ribbonSaturationHigh: 0.95,
     ribbonLightnessLow: 0.2,
     ribbonLightnessHigh: 0.62,
+  },
+  t: {
+    surfaceColor: new THREE.Color("#150427"),
+    surfaceEmissive: new THREE.Color("#4f1488"),
+    ribbonHueLow: 0.75,
+    ribbonHueHigh: 0.81,
+    ribbonSaturationLow: 0.78,
+    ribbonSaturationHigh: 1,
+    ribbonLightnessLow: 0.24,
+    ribbonLightnessHigh: 0.74,
   },
 };
 

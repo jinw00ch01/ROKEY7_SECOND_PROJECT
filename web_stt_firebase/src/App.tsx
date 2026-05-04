@@ -2,11 +2,58 @@ import { OrbitControls } from "@react-three/drei";
 import { Canvas, useThree } from "@react-three/fiber";
 import { useEffect } from "react";
 import { Terrain } from "./components/Terrain";
+import type { ColorCommand } from "./components/terrain/colorThemes";
 import { useBrowserVoiceCommand } from "./hooks/useBrowserVoiceCommand";
 import { useKeyboardCommand } from "./hooks/useKeyboardCommand";
 import { useRobotState } from "./hooks/useRobotState";
 
 const TERRAIN_VIEW_TARGET: [number, number, number] = [-2, 0, 0];
+const NUT_COLOR_COMMANDS: Record<string, ColorCommand> = {
+  almond: "w",
+  pistachio: "e",
+  pistachiio: "e",
+  cashew: "r",
+  walnut: "t",
+};
+const NUT_ALIASES: Array<[string, string]> = [
+  ["almonds", "almond"],
+  ["almond", "almond"],
+  ["아몬드", "almond"],
+  ["pistachios", "pistachio"],
+  ["pistachio", "pistachio"],
+  ["pistachiio", "pistachio"],
+  ["피스타치오", "pistachio"],
+  ["cashews", "cashew"],
+  ["cashew", "cashew"],
+  ["캐슈", "cashew"],
+  ["walnuts", "walnut"],
+  ["walnut", "walnut"],
+  ["호두", "walnut"],
+];
+
+function getDetectedNut(
+  targets: string[] | undefined,
+  commandText: string,
+): string {
+  const targetNut = targets
+    ?.map((target) => target.toLowerCase())
+    .find((target) => NUT_COLOR_COMMANDS[target]);
+
+  if (targetNut) {
+    return targetNut;
+  }
+
+  const normalizedCommand = commandText.toLowerCase();
+  const aliasMatch = NUT_ALIASES.find(([alias]) =>
+    normalizedCommand.includes(alias),
+  );
+
+  return aliasMatch?.[1] ?? "";
+}
+
+function getTerrainColorCommand(activeNut: string): ColorCommand {
+  return NUT_COLOR_COMMANDS[activeNut] ?? "q";
+}
 
 function FixedCamera() {
   const { camera } = useThree();
@@ -22,26 +69,22 @@ function FixedCamera() {
 
 export default function App() {
   const { robotState, connection, errorMessage } = useRobotState();
-  const { colorCommand, keyboardCommand } = useKeyboardCommand();
+  const { keyboardCommand } = useKeyboardCommand();
   const browserVoice = useBrowserVoiceCommand();
+  const {
+    errorMessage: voiceErrorMessage,
+    isActive: isVoiceActive,
+    phase: voicePhase,
+    start: startVoice,
+    stop: stopVoice,
+  } = browserVoice;
   const activeCommand = robotState.commandText || keyboardCommand;
-
-  useEffect(() => {
-    const hasCompletedCommand =
-      robotState.mode === "idle" &&
-      (robotState.commandText || robotState.parsedAction || robotState.targets?.length);
-
-    if (browserVoice.isActive && hasCompletedCommand) {
-      browserVoice.stop();
-    }
-  }, [
-    browserVoice.isActive,
-    browserVoice.stop,
+  const detectedNut = getDetectedNut(
+    robotState.targets,
     robotState.commandText,
-    robotState.mode,
-    robotState.parsedAction,
-    robotState.targets?.length,
-  ]);
+  );
+  const activeNut = robotState.mode === "processing" ? detectedNut : "";
+  const terrainColorCommand = getTerrainColorCommand(activeNut);
 
   return (
     <div
@@ -58,7 +101,7 @@ export default function App() {
         <ambientLight intensity={0.5} />
         <directionalLight position={[4, 8, 4]} intensity={1.4} />
         <Terrain
-          colorCommand={colorCommand}
+          colorCommand={terrainColorCommand}
           mode={robotState.mode}
         />
         <OrbitControls target={TERRAIN_VIEW_TARGET} />
@@ -82,8 +125,9 @@ export default function App() {
         <p>Command: {activeCommand || "-"}</p>
         <p>Action: {robotState.parsedAction || "-"}</p>
         <p>Targets: {robotState.targets?.join(", ") || "-"}</p>
+        <p>Active Nut: {activeNut || "none"}</p>
         {errorMessage ? <p>Error: {errorMessage}</p> : null}
-        <p>Color: {colorCommand.toUpperCase()}</p>
+        <p>Color: {terrainColorCommand.toUpperCase()}</p>
         <div
           style={{
             display: "flex",
@@ -94,14 +138,14 @@ export default function App() {
           }}
         >
           <button
-            disabled={browserVoice.isActive}
-            onClick={browserVoice.start}
+            disabled={isVoiceActive}
+            onClick={startVoice}
             style={{
               background: "rgba(235, 248, 255, 0.92)",
               border: 0,
               borderRadius: 6,
               color: "#050505",
-              cursor: browserVoice.isActive ? "default" : "pointer",
+              cursor: isVoiceActive ? "default" : "pointer",
               fontSize: 14,
               fontWeight: 700,
               padding: "8px 12px",
@@ -111,14 +155,14 @@ export default function App() {
             Start Python Voice
           </button>
           <button
-            disabled={!browserVoice.isActive}
-            onClick={browserVoice.stop}
+            disabled={!isVoiceActive}
+            onClick={stopVoice}
             style={{
               background: "rgba(5, 5, 5, 0.62)",
               border: "1px solid rgba(235, 248, 255, 0.5)",
               borderRadius: 6,
               color: "rgba(235, 248, 255, 0.92)",
-              cursor: browserVoice.isActive ? "pointer" : "default",
+              cursor: isVoiceActive ? "pointer" : "default",
               fontSize: 14,
               fontWeight: 700,
               padding: "8px 12px",
@@ -128,8 +172,8 @@ export default function App() {
             Stop
           </button>
         </div>
-        <p>Voice bridge: {browserVoice.phase}</p>
-        {browserVoice.errorMessage ? <p>Voice error: {browserVoice.errorMessage}</p> : null}
+        <p>Voice bridge: {voicePhase}</p>
+        {voiceErrorMessage ? <p>Voice error: {voiceErrorMessage}</p> : null}
       </div>
     </div>
   );
