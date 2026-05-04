@@ -3,6 +3,8 @@
 
 # Environment variables
 .env
+secrets/
+secrets_4_firbase_config/
 
 # Python
 __pycache__/

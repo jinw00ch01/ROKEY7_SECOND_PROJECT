@@ -13,11 +13,11 @@ import {
   writeElectricEdge,
 } from "./terrain/electricRibbons";
 import {
-  getCommandWaveScale,
   getModeIntensity,
   getTerrainHeight,
   getVertex,
   getVertexIndex,
+  getVoiceWaveScale,
 } from "./terrain/terrainHeight";
 import {
   RIBBON_VERTEX_COUNT,
@@ -29,18 +29,18 @@ import {
 type TerrainProps = {
   colorCommand: string;
   mode: RobotMode;
-  commandText: string;
 };
 
 function isColorCommand(value: string): value is ColorCommand {
   return value === "q" || value === "w" || value === "e" || value === "r";
 }
 
-export function Terrain({ colorCommand, mode, commandText }: TerrainProps) {
+export function Terrain({ colorCommand, mode }: TerrainProps) {
   const terrainMeshRef = useRef<THREE.Mesh>(null);
   const electricMeshRef = useRef<THREE.Mesh>(null);
   const terrainMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
   const commandWaveScaleRef = useRef(1);
+  const modeIntensityRef = useRef(0.65);
   const colorThemeRef = useRef(createMutableColorTheme(colorThemes.q));
   const ribbonBuffers = useMemo(
     () => ({
@@ -66,11 +66,12 @@ export function Terrain({ colorCommand, mode, commandText }: TerrainProps) {
     const elapsed = clock.getElapsedTime();
     const terrainScroll = elapsed * 0.42;
     const pulseTime = elapsed * 0.85;
-    const modeIntensity = getModeIntensity(mode);
+    const targetModeIntensity = getModeIntensity(mode);
     const targetColorTheme =
       colorThemes[isColorCommand(colorCommand) ? colorCommand : "q"];
-    const targetCommandWaveScale = getCommandWaveScale(commandText);
-    const smoothingAmount = 1 - Math.exp(-delta * 3.2);
+    const targetCommandWaveScale = getVoiceWaveScale(mode);
+    const smoothingAmount = 1 - Math.exp(-delta * 1.45);
+    const intensitySmoothingAmount = 1 - Math.exp(-delta * 1.8);
     const colorSmoothingAmount = 1 - Math.exp(-delta * 2.8);
     smoothColorTheme(
       colorThemeRef.current,
@@ -83,11 +84,17 @@ export function Terrain({ colorCommand, mode, commandText }: TerrainProps) {
         colorThemeRef.current.surfaceEmissive,
       );
     }
+    modeIntensityRef.current = THREE.MathUtils.lerp(
+      modeIntensityRef.current,
+      targetModeIntensity,
+      intensitySmoothingAmount,
+    );
     commandWaveScaleRef.current = THREE.MathUtils.lerp(
       commandWaveScaleRef.current,
       targetCommandWaveScale,
       smoothingAmount,
     );
+    const modeIntensity = modeIntensityRef.current;
     const commandWaveScale = commandWaveScaleRef.current;
     const terrainGeometry = terrainMeshRef.current.geometry as THREE.PlaneGeometry;
     const positionAttribute = terrainGeometry.attributes

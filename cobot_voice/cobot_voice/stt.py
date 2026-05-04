@@ -10,8 +10,10 @@ class STT:
         self.duration = 5  # seconds
         self.samplerate = 16000  # Whisper prefers 16kHz
 
-    def speech2text(self):
+    def speech2text(self, status_callback=None):
         print("음성 녹음을 시작합니다. \n 5초 동안 말해주세요...")
+        if status_callback:
+            status_callback("listening")
         audio = sd.rec(
             int(self.duration * self.samplerate),
             samplerate=self.samplerate,
@@ -20,6 +22,8 @@ class STT:
         )
         sd.wait()
         print("녹음 완료. Whisper에 전송 중...")
+        if status_callback:
+            status_callback("transcribing")
 
         with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as temp_wav:
             wav.write(temp_wav.name, self.samplerate, audio)

@@ -1,7 +1,7 @@
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 
-from cobot_voice.object_aliases import NUT_KEYWORD_MAP, NUT_NAMES
+from cobot_voice.object_aliases import NUT_KEYWORD_MAP, NUT_NAMES, find_nut_targets
 
 PROMPT_CONTENT = """
 당신은 사용자의 문장을 분석하여 action과 견과류 키워드를 추출해야 합니다.
@@ -12,7 +12,12 @@ PROMPT_CONTENT = """
 - home: 홈, 원점, home, 초기위치, 돌아가 등
 
 <견과류 리스트>
-호두(walnut), 아몬드(almond), 캐슈넛(cashew), 피스타치오(pistachio), 마카다미아(macadamia), 건포도(raisin)
+호두(walnut), 아몬드(almond), 캐슈넛(cashew), 피스타치오(pistachio)
+
+<STT 오인식/변형 힌트>
+- 호두는 호도, 월넛으로 들릴 수 있습니다.
+- 캐슈넛은 캐슈, 캐슈 너트, 케슈넛, 케슈 너트로 들릴 수 있습니다.
+- 피스타치오는 피스타 치오, 비스타치오로 들릴 수 있습니다.
 
 <출력 형식>
 첫 줄: action (sort, stop, home 중 하나)
@@ -79,7 +84,11 @@ class KeywordExtractor:
             if raw_targets != "none":
                 for word in raw_targets.split():
                     canonical = NUT_KEYWORD_MAP.get(word, word)
-                    if canonical in NUT_NAMES:
+                    if canonical in NUT_NAMES and canonical not in targets:
                         targets.append(canonical)
+
+        for target in find_nut_targets(text):
+            if target not in targets:
+                targets.append(target)
 
         return action, targets

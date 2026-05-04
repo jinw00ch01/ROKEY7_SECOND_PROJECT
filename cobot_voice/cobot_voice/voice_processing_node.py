@@ -28,8 +28,9 @@ class VoiceProcessingNode(Node):
         self.mic = MicController()
         self.wakeup = WakeupWord(buffer_size=self.mic.config.buffer_size)
 
-        # Publisher
+        # Publishers
         self.text_pub = self.create_publisher(String, '/voice/text', 10)
+        self.status_pub = self.create_publisher(String, '/voice/status', 10)
 
         # Start listening thread
         self._running = True
@@ -37,6 +38,12 @@ class VoiceProcessingNode(Node):
         self._thread.start()
 
         self.get_logger().info("Voice processing node started. Listening for wake word '안녕 로키'...")
+        self._publish_status("idle")
+
+    def _publish_status(self, status: str):
+        msg = String()
+        msg.data = status
+        self.status_pub.publish(msg)
 
     def _listen_loop(self):
         self.mic.open_stream()
@@ -46,9 +53,12 @@ class VoiceProcessingNode(Node):
             try:
                 if self.wakeup.is_wakeup():
                     self.get_logger().info("Wake word detected! Recording...")
+                    self._publish_status("wake_detected")
                     self.mic.close_stream()
 
-                    text = self.stt.speech2text()
+                    self._publish_status("listening")
+                    text = self.stt.speech2text(status_callback=self._publish_status)
+                    self._publish_status("processing")
                     self.get_logger().info(f"STT result: {text}")
 
                     msg = String()
@@ -57,9 +67,11 @@ class VoiceProcessingNode(Node):
 
                     self.mic.open_stream()
                     self.wakeup.set_stream(self.mic.stream)
+                    self._publish_status("idle")
                     self.get_logger().info("Listening for wake word...")
             except Exception as e:
                 self.get_logger().error(f"Error in listen loop: {e}")
+                self._publish_status("error")
                 break
 
     def destroy_node(self):

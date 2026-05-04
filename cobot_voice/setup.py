@@ -25,6 +25,9 @@ setup(
         'console_scripts': [
             'voice_processing = cobot_voice.voice_processing_node:main',
             'command_parser = cobot_voice.command_parser_node:main',
+            'firebase_state_bridge = cobot_voice.firebase_state_bridge:main',
+            'voice_web_demo = cobot_voice.voice_web_demo:main',
+            'web_voice_bridge_server = cobot_voice.web_voice_bridge_server:main',
         ],
     },
 )
