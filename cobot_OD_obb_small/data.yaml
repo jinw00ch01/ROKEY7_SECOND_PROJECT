@@ -1,0 +1,8 @@
+train: train/images
+val: valid/images
+test: test/images
+# unseen session - 별도 평가용 (yolo_train.py가 별도 model.val 호출)
+test_extra: test_extra/images
+
+nc: 4
+names: ['almond', 'cashew', 'pistachio', 'walnut']

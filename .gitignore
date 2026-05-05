@@ -19,3 +19,27 @@ requirement/
 # Local editor and debug artifacts
 .vscode/
 *.log
+
+# Object detection datasets and prior experiments (not tracked in git)
+cobot_object_detection_01/
+cobot_object_detection_02/
+yolov8_obb_sources/
+yolov8_sources/
+cobot_object_detection_obb_03.zip
+
+# Claude Code local settings
+.claude/
+
+# OD experiments: exclude images/caches/non-final weights, keep only the
+# final operational best.pt per experiment_03.md / experiment_04.md
+cobot_OD_obb_nano/**/*.jpg
+cobot_OD_obb_nano/**/*.png
+cobot_OD_obb_nano/**/*.cache
+cobot_OD_obb_nano/**/*.pt
+!cobot_OD_obb_nano/train_phase2_20260504_173049/weights/best.pt
+
+cobot_OD_obb_small/**/*.jpg
+cobot_OD_obb_small/**/*.png
+cobot_OD_obb_small/**/*.cache
+cobot_OD_obb_small/**/*.pt
+!cobot_OD_obb_small/train_phase2_20260505_203819/weights/best.pt

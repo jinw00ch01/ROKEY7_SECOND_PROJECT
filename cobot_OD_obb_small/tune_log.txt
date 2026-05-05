@@ -1,0 +1,268 @@
+Using weights: C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\train_phase2_20260505_203819\weights\best.pt
+
+Sweeping conf=[0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.6] x iou=[0.5, 0.6, 0.7] on val split (OBB)...
+ conf   iou      P      R     F1   mAP50
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+YOLOv8s-obb summary (fused): 82 layers, 11,413,119 parameters, 0 gradients, 29.4 GFLOPs
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 702.4126.9 MB/s, size: 34.3 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.9s/it 0.6s<3.8s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.1it/s 0.8s<0.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 3.6it/s 0.8s
+                   all         40        303      0.995      0.995      0.992      0.916
+Speed: 2.0ms preprocess, 11.4ms inference, 0.0ms loss, 5.1ms postprocess per image
+ 0.10  0.50  0.995  0.995  0.995   0.992
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 699.6184.5 MB/s, size: 33.5 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.3it/s 0.2s<1.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.7it/s 0.4s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 6.2it/s 0.5s
+                   all         40        303      0.995      0.995      0.992      0.916
+Speed: 1.9ms preprocess, 6.0ms inference, 0.0ms loss, 1.9ms postprocess per image
+ 0.15  0.50  0.995  0.995  0.995   0.992
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 699.9161.9 MB/s, size: 29.9 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.1s/it 0.3s<2.2s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.3it/s 0.5s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.1it/s 0.6s
+                   all         40        303      0.995      0.995      0.992      0.916
+Speed: 1.4ms preprocess, 8.8ms inference, 0.0ms loss, 1.7ms postprocess per image
+ 0.20  0.50  0.995  0.995  0.995   0.992
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 857.3241.5 MB/s, size: 34.5 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.3s/it 0.4s<2.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.2it/s 0.6s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 4.7it/s 0.6s
+                   all         40        303      0.995      0.993       0.99      0.914
+Speed: 1.9ms preprocess, 9.8ms inference, 0.0ms loss, 1.8ms postprocess per image
+ 0.25  0.50  0.995  0.993  0.994   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 897.078.2 MB/s, size: 35.1 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.3it/s 0.2s<1.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.7it/s 0.4s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 6.4it/s 0.5s
+                   all         40        303      0.995      0.993       0.99      0.914
+Speed: 1.9ms preprocess, 6.0ms inference, 0.0ms loss, 1.7ms postprocess per image
+ 0.30  0.50  0.995  0.993  0.994   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 926.4173.4 MB/s, size: 35.3 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.0it/s 0.3s<1.9s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.4it/s 0.5s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.5it/s 0.5s
+                   all         40        303      0.997      0.993       0.99      0.914
+Speed: 2.4ms preprocess, 7.3ms inference, 0.0ms loss, 1.7ms postprocess per image
+ 0.35  0.50  0.997  0.993  0.995   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 633.7183.2 MB/s, size: 30.6 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.0s/it 0.3s<2.0s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.4it/s 0.5s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.3it/s 0.6s
+                   all         40        303      0.997      0.993       0.99      0.914
+Speed: 1.5ms preprocess, 8.4ms inference, 0.0ms loss, 1.7ms postprocess per image
+ 0.40  0.50  0.997  0.993  0.995   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 852.987.9 MB/s, size: 32.8 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.2s/it 0.4s<2.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.0it/s 0.6s<0.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 4.5it/s 0.7s
+                   all         40        303      0.997      0.993       0.99      0.914
+Speed: 1.8ms preprocess, 8.7ms inference, 0.0ms loss, 2.5ms postprocess per image
+ 0.45  0.50  0.997  0.993  0.995   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 452.285.4 MB/s, size: 32.3 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.1s/it 0.3s<2.2s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.1it/s 0.5s<0.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 4.7it/s 0.6s
+                   all         40        303      0.997       0.99      0.987      0.912
+Speed: 2.4ms preprocess, 7.1ms inference, 0.0ms loss, 2.8ms postprocess per image
+ 0.50  0.50  0.997  0.990  0.993   0.987
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 449.0121.6 MB/s, size: 34.1 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.3s/it 0.4s<2.6s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.1it/s 0.6s<0.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 4.4it/s 0.7s
+                   all         40        303      0.997       0.99      0.987      0.912
+Speed: 1.7ms preprocess, 9.2ms inference, 0.0ms loss, 2.6ms postprocess per image
+ 0.55  0.50  0.997  0.990  0.993   0.987
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 424.1112.9 MB/s, size: 31.0 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.2s/it 0.4s<2.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.1it/s 0.5s<0.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 4.8it/s 0.6s
+                   all         40        303      0.997      0.987      0.985       0.91
+Speed: 2.1ms preprocess, 9.7ms inference, 0.0ms loss, 1.6ms postprocess per image
+ 0.60  0.50  0.997  0.987  0.992   0.985
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 868.0244.5 MB/s, size: 32.3 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.3s/it 0.4s<2.7s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 1.9it/s 0.6s<0.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 4.2it/s 0.7s
+                   all         40        303      0.995      0.995      0.992      0.916
+Speed: 2.5ms preprocess, 9.7ms inference, 0.0ms loss, 2.6ms postprocess per image
+ 0.10  0.60  0.995  0.995  0.995   0.992
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 451.9115.4 MB/s, size: 35.5 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.4s/it 0.4s<2.7s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.0it/s 0.6s<0.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 4.3it/s 0.7s
+                   all         40        303      0.995      0.995      0.992      0.916
+Speed: 2.0ms preprocess, 9.9ms inference, 0.0ms loss, 2.6ms postprocess per image
+ 0.15  0.60  0.995  0.995  0.995   0.992
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 489.095.5 MB/s, size: 34.9 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.0it/s 0.3s<2.0s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.1it/s 0.5s<0.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 4.9it/s 0.6s
+                   all         40        303      0.995      0.995      0.992      0.916
+Speed: 2.5ms preprocess, 6.7ms inference, 0.0ms loss, 2.6ms postprocess per image
+ 0.20  0.60  0.995  0.995  0.995   0.992
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 427.694.4 MB/s, size: 32.9 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.1it/s 0.3s<1.8s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.5it/s 0.4s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.7it/s 0.5s
+                   all         40        303      0.995      0.992       0.99      0.914
+Speed: 1.5ms preprocess, 5.9ms inference, 0.0ms loss, 2.0ms postprocess per image
+ 0.25  0.60  0.995  0.992  0.994   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 722.8109.0 MB/s, size: 28.8 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.1it/s 0.3s<1.8s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.6it/s 0.4s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.8it/s 0.5s
+                   all         40        303      0.995      0.992       0.99      0.914
+Speed: 2.0ms preprocess, 7.3ms inference, 0.0ms loss, 1.6ms postprocess per image
+ 0.30  0.60  0.995  0.992  0.994   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 701.175.9 MB/s, size: 30.8 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.3it/s 0.2s<1.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.7it/s 0.4s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 6.3it/s 0.5s
+                   all         40        303      0.997      0.993       0.99      0.914
+Speed: 2.0ms preprocess, 6.0ms inference, 0.0ms loss, 2.0ms postprocess per image
+ 0.35  0.60  0.997  0.993  0.995   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 924.4170.6 MB/s, size: 36.2 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.0s/it 0.3s<2.0s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.6it/s 0.5s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.5it/s 0.6s
+                   all         40        303      0.997      0.993       0.99      0.914
+Speed: 2.0ms preprocess, 8.2ms inference, 0.0ms loss, 1.6ms postprocess per image
+ 0.40  0.60  0.997  0.993  0.995   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 855.9217.3 MB/s, size: 33.9 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.1it/s 0.3s<1.8s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.6it/s 0.4s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.8it/s 0.5s
+                   all         40        303      0.997      0.993       0.99      0.914
+Speed: 2.2ms preprocess, 6.9ms inference, 0.0ms loss, 1.7ms postprocess per image
+ 0.45  0.60  0.997  0.993  0.995   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 829.1174.2 MB/s, size: 33.8 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.3it/s 0.2s<1.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.7it/s 0.4s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 6.2it/s 0.5s
+                   all         40        303      0.997       0.99      0.987      0.912
+Speed: 1.7ms preprocess, 6.0ms inference, 0.0ms loss, 1.9ms postprocess per image
+ 0.50  0.60  0.997  0.990  0.993   0.987
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 792.2165.3 MB/s, size: 31.4 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.1s/it 0.3s<2.2s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.3it/s 0.5s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.1it/s 0.6s
+                   all         40        303      0.997       0.99      0.987      0.912
+Speed: 1.5ms preprocess, 8.9ms inference, 0.0ms loss, 1.8ms postprocess per image
+ 0.55  0.60  0.997  0.990  0.993   0.987
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 834.6178.5 MB/s, size: 31.6 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.2s/it 0.4s<2.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.2it/s 0.6s<0.5s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 4.6it/s 0.6s
+                   all         40        303      0.997      0.987      0.985       0.91
+Speed: 2.3ms preprocess, 8.2ms inference, 0.0ms loss, 2.5ms postprocess per image
+ 0.60  0.60  0.997  0.987  0.992   0.985
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 402.7102.3 MB/s, size: 33.9 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.1s/it 0.3s<2.2s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.3it/s 0.5s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.0it/s 0.6s
+                   all         40        303      0.996      0.994      0.992      0.916
+Speed: 1.5ms preprocess, 9.7ms inference, 0.0ms loss, 1.7ms postprocess per image
+ 0.10  0.70  0.996  0.994  0.995   0.992
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 767.8162.2 MB/s, size: 30.2 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.3it/s 0.2s<1.6s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.6it/s 0.4s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 6.1it/s 0.5s
+                   all         40        303      0.996      0.994      0.992      0.916
+Speed: 2.0ms preprocess, 6.1ms inference, 0.0ms loss, 1.7ms postprocess per image
+ 0.15  0.70  0.996  0.994  0.995   0.992
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 857.2120.6 MB/s, size: 32.2 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.2s/it 0.4s<2.3s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.3it/s 0.5s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 4.9it/s 0.6s
+                   all         40        303      0.996      0.994      0.992      0.916
+Speed: 1.6ms preprocess, 9.7ms inference, 0.0ms loss, 1.7ms postprocess per image
+ 0.20  0.70  0.996  0.994  0.995   0.992
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 909.3181.5 MB/s, size: 33.9 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.1it/s 0.3s<1.9s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.6it/s 0.4s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.7it/s 0.5s
+                   all         40        303      0.996      0.992       0.99      0.914
+Speed: 2.0ms preprocess, 7.1ms inference, 0.0ms loss, 1.7ms postprocess per image
+ 0.25  0.70  0.996  0.992  0.994   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 858.1178.5 MB/s, size: 31.6 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.4it/s 0.2s<1.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.6it/s 0.4s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 6.4it/s 0.5s
+                   all         40        303      0.996      0.992       0.99      0.914
+Speed: 2.2ms preprocess, 6.2ms inference, 0.0ms loss, 1.6ms postprocess per image
+ 0.30  0.70  0.996  0.992  0.994   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 857.176.7 MB/s, size: 32.5 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.0s/it 0.3s<2.1s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.3it/s 0.5s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.2it/s 0.6s
+                   all         40        303      0.997      0.992       0.99      0.914
+Speed: 2.5ms preprocess, 8.3ms inference, 0.0ms loss, 1.7ms postprocess per image
+ 0.35  0.70  0.997  0.992  0.994   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 896.1149.3 MB/s, size: 35.3 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.1it/s 0.3s<1.9s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.4it/s 0.5s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.5it/s 0.5s
+                   all         40        303      0.997      0.992       0.99      0.914
+Speed: 2.2ms preprocess, 7.5ms inference, 0.0ms loss, 1.8ms postprocess per image
+ 0.40  0.70  0.997  0.992  0.994   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 808.9165.3 MB/s, size: 34.1 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.0s/it 0.3s<2.0s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.3it/s 0.5s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.3it/s 0.6s
+                   all         40        303      0.997      0.992       0.99      0.914
+Speed: 2.3ms preprocess, 8.0ms inference, 0.0ms loss, 1.6ms postprocess per image
+ 0.45  0.70  0.997  0.992  0.994   0.990
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 812.8145.4 MB/s, size: 32.9 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.2it/s 0.3s<1.7s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.6it/s 0.4s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 5.9it/s 0.5s
+                   all         40        303      0.997       0.99      0.987      0.912
+Speed: 2.1ms preprocess, 7.1ms inference, 0.0ms loss, 1.6ms postprocess per image
+ 0.50  0.70  0.997  0.990  0.993   0.987
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 824.9128.3 MB/s, size: 33.7 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.2s/it 0.4s<2.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.4it/s 0.5s<0.4s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 4.9it/s 0.6s
+                   all         40        303      0.997       0.99      0.987      0.912
+Speed: 1.9ms preprocess, 10.1ms inference, 0.0ms loss, 1.6ms postprocess per image
+ 0.55  0.70  0.997  0.990  0.993   0.987
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 824.9144.6 MB/s, size: 32.8 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\valid\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.5it/s 0.2s<1.3s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 2.9it/s 0.4s<0.3s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 6.7it/s 0.4s
+                   all         40        303      0.997      0.987      0.985       0.91
+Speed: 1.7ms preprocess, 6.0ms inference, 0.0ms loss, 1.7ms postprocess per image
+ 0.60  0.70  0.997  0.987  0.992   0.985
+
+Wrote C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\conf_sweep_20260505_231450.csv
+Wrote C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\conf_sweep_20260505_231450.png
+
+[BEST on val] conf=0.35 iou=0.5 F1=0.995 P=0.997 R=0.993 mAP50=0.990
+
+Re-evaluating test split (regular) with the best (conf, iou)...
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 729.4160.8 MB/s, size: 32.1 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\test\labels.cache... 40 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 40/40  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 33% ━━━━──────── 1/3 1.0it/s 0.3s<1.9s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 67% ━━━━━━━━──── 2/3 1.8it/s 0.6s<0.6s[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 3/3 3.5it/s 0.8s
+                   all         40        295      0.996      0.993      0.989      0.893
+                almond         19         73          1          1      0.995      0.885
+                cashew         19         70          1      0.986      0.985      0.931
+             pistachio         20         87          1          1      0.995      0.916
+                walnut         19         65      0.985      0.985      0.981      0.839
+Speed: 3.6ms preprocess, 6.3ms inference, 0.0ms loss, 2.4ms postprocess per image
+Results saved to [1mC:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\test_tuned_20260505_231450[0m
+[TEST tuned] P=0.996 R=0.993 mAP50=0.989 mAP50-95=0.893
+
+Re-evaluating test_extra (unseen session) with the best (conf, iou)...
+Ultralytics 8.4.43  Python-3.12.10 torch-2.12.0.dev20260408+cu128 CUDA:0 (NVIDIA GeForce RTX 5060 Laptop GPU, 8151MiB)
+[34m[1mval: [0mFast image access  (ping: 0.00.0 ms, read: 825.5160.2 MB/s, size: 33.1 KB)
+[K[34m[1mval: [0mScanning C:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\test_extra\labels.cache... 15 images, 0 backgrounds, 0 corrupt: 100% ━━━━━━━━━━━━ 15/15  0.0s
+[K                 Class     Images  Instances      Box(P          R      mAP50  mAP50-95): 100% ━━━━━━━━━━━━ 1/1 3.4it/s 0.3s
+                   all         15        165      0.994      0.984      0.995      0.895
+                cashew         15        126          1      0.984      0.995      0.906
+             pistachio         15         32      0.995      0.969      0.994      0.886
+                walnut          6          7      0.987          1      0.995      0.893
+Speed: 3.6ms preprocess, 6.1ms inference, 0.0ms loss, 2.5ms postprocess per image
+Results saved to [1mC:\cobot_ws\ROKEY7_SECOND_PROJECT\cobot_object_detection_obb_04\test_extra_tuned_20260505_231450[0m
+[TEST_EXTRA tuned] P=0.994 R=0.984 mAP50=0.995 mAP50-95=0.895
