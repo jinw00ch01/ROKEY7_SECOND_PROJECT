@@ -1,0 +1,13 @@
+/**:
+  ros__parameters:
+    model_path: "/home/choijinwoo/cobot_ws/src/cobot2/cobot_OD_obb_nano/train_phase2_20260504_173049/weights/best.pt"
+    class_names: ["almond", "cashew", "pistachio", "walnut"]
+    imgsz: 800
+    conf_threshold: 0.75
+    iou_threshold: 0.50
+    device: ""                       # "" = auto, "cpu", "cuda:0"
+    multi_frame_window_sec: 0.5
+    cluster_distance_threshold_px: 30.0
+    color_topic: "/camera/camera/color/image_raw"
+    output_topic: "/detection/objects"
+    publish_when_empty: true

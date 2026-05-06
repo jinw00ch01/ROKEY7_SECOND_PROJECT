@@ -1,0 +1,8 @@
+# Trigger one detection cycle and return objects with base-frame poses.
+# perception_transform_node fulfills this by aggregating the latest YOLO-OBB
+# detections, filtering by depth/workspace, and applying hand-eye transform.
+
+---
+DetectedObjectArray objects   # transform_valid is true on every entry returned
+bool success
+string message                # populated with the reason on failure

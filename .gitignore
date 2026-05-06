@@ -15,6 +15,7 @@ build/
 install/
 log/
 requirement/
+cobot_object_detection_obb_03/
 
 # Local editor and debug artifacts
 .vscode/

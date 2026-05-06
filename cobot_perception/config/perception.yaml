@@ -1,0 +1,25 @@
+/**:
+  ros__parameters:
+    gripper2camera_npy: "/home/choijinwoo/cobot_ws/src/cobot2/[lecture]pick_and_place_voice/resource/T_gripper2camera.npy"
+
+    # camera-frame depth gates (mm)
+    min_depth_camera_mm: 50.0
+    max_depth_camera_mm: 1500.0
+
+    # base-frame z corrections (matches lecture pick_and_place_voice)
+    depth_offset_mm: -35.0
+    min_depth_base_mm: 2.0
+
+    # TCP source selector. "fixed" is the standalone-development default;
+    # switch to "service" once cobot_robot_control is up to fetch the live TCP.
+    tcp_source: "service"         # fixed | service
+    fixed_tcp_xyz_mm: [400.0, 0.0, 400.0]
+    fixed_tcp_zyz_deg: [0.0, 180.0, 0.0]
+    tcp_service_name: "/robot/get_current_pose"
+    tcp_service_timeout_sec: 2.0
+
+    # topics + service
+    detection_topic: "/detection/objects"
+    depth_topic: "/camera/camera/aligned_depth_to_color/image_raw"
+    camera_info_topic: "/camera/camera/color/camera_info"
+    service_name: "/perception/detect_once"

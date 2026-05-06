@@ -1,0 +1,8 @@
+# Read the robot's current TCP pose (Doosan posx).
+# Units: position mm in robot base frame, rotation ZYZ Euler degrees.
+
+---
+geometry_msgs/Point xyz_mm
+float64[3] zyz_deg          # [rx, ry, rz]
+bool success
+string message              # populated with the reason on failure

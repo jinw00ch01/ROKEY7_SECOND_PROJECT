@@ -1,12 +1,24 @@
 # Goal
-string target_label         # object to pick
-geometry_msgs/Pose pick_pose    # pick position in base frame
-geometry_msgs/Pose place_pose   # place position in base frame
+# Pick one nut at the given grasp pose and place it at the (fixed) return pose.
+# Units: position mm in robot base frame, yaw rad.
+string target_class
+geometry_msgs/Point grasp_xyz
+float32 grasp_yaw                 # rad, gripper yaw on top-down (rx=0, ry=180)
+float32 pre_grasp_width_mm        # gripper opens to this width before approach (<=0: skip pre-position)
+geometry_msgs/Point return_xyz    # release position (mm)
+float64[3] return_zyz_deg         # full ZYZ Euler at release [rx, ry, rz] in degrees
 ---
 # Result
 bool success
+uint8 failure_code
+# 0 = ok
+# 1 = approach_fail        (motion to approach pose failed)
+# 2 = grasp_not_detected   (gripper closed without detecting an object)
+# 3 = motion_fail          (DSR motion error during execute)
+# 4 = safety_stop          (preempted by /safety/stop)
+# 5 = workspace_violation  (grasp_xyz or return_xyz outside workspace)
 string message
 ---
 # Feedback
-string current_phase        # approaching, gripping, lifting, placing, done
-float32 progress            # 0.0 ~ 1.0
+# Stage progression: approach -> grasp -> verify_grip -> lift -> transit -> place -> retreat -> home
+string stage

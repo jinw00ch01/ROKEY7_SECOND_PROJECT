@@ -1,0 +1,48 @@
+/**:
+  ros__parameters:
+    # Order source
+    order_source: "mock"        # mock | db
+    mock_order_almond: 2
+    mock_order_cashew: 2
+    mock_order_pistachio: 2
+    mock_order_walnut: 2
+    db_service_name: "/db/get_nut_order"
+
+    # Selection priority within the order book
+    class_priority: ["almond", "cashew", "pistachio", "walnut"]
+
+    # Target selector
+    conf_gate: 0.40
+    min_depth_mm: 2.0
+    workspace_xmin_mm: 200.0
+    workspace_xmax_mm: 700.0
+    workspace_ymin_mm: -300.0
+    workspace_ymax_mm: 300.0
+    workspace_zmin_mm: 0.0
+    workspace_zmax_mm: 500.0
+
+    # Return pose (measured 2026-05-06): release happens at this z; the
+    # action's approach_offset_z_mm (default 80mm) is applied above for transit.
+    return_xyz_mm: [367.0, -150.0, 340.0]
+    return_zyz_deg: [168.0, 179.0, 168.0]
+
+    # Pre-grasp gripper width = short_axis_mm + margin, clamped to [min, max].
+    # Set margin < 0 to disable pre-positioning.
+    pre_grasp_margin_mm: 8.0
+    pre_grasp_min_mm: 15.0
+    pre_grasp_max_mm: 80.0
+
+    # ROS interfaces
+    perception_service_name: "/perception/detect_once"
+    pick_action_name: "/robot/pick_and_place"
+    home_service_name: "/robot/home"
+
+    # Retry policy
+    max_detect_misses: 2
+    max_grasp_failures: 2
+
+    # Timeouts
+    service_timeout_sec: 10.0
+    action_timeout_sec: 60.0
+
+    autostart: true

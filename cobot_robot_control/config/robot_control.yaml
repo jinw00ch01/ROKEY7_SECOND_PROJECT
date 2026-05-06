@@ -1,0 +1,40 @@
+# Use "/**" so the params apply regardless of the namespace the node is
+# launched in (we put robot_control_node under /dsr01/ to match Doosan's
+# convention, so the literal "robot_control_node:" key would not match).
+/**:
+  ros__parameters:
+    robot_id: "dsr01"
+    robot_model: "m0609"
+
+    # Backends. Set to real/modbus for Phase A' (real hardware).
+    # Set both back to "mock" for hardware-free development.
+    motion_backend: "real"        # real | mock
+    gripper_backend: "modbus"     # modbus | mock | tool_dio
+    gripper_ip: "192.168.1.1"
+    gripper_port: 502
+    gripper_force_x10: 150        # 1/10 N units; 150 = 15 N (was 200 = 20 N, default 400 = 40 N)
+    gripper_open_width_x10: 1100  # 1/10 mm units; 1100 = 110 mm (RG2 max)
+
+    # JReady from lecture/pick_and_place_voice.
+    home_joints_deg: [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
+    approach_offset_z_mm: 80.0
+
+    velocity: 60.0
+    acceleration: 60.0
+    velocity_slow: 30.0
+    acceleration_slow: 30.0
+    grip_settle_timeout_sec: 5.0
+
+    # Constant XY offset applied to grasp_xyz in the gripper's LOCAL frame
+    # (rotated by grasp_yaw before adding to world XY). Use this to
+    # compensate for the Doosan TCP being offset from the gripper finger
+    # center vs. what the lecture's hand-eye calibration assumed.
+    # If gripper consistently lands with one finger near the nut and the
+    # other in air, push toward the empty-finger side.
+    # Example: [0.0, 8.0] shifts +8 mm along the gripper's local Y.
+    grasp_local_offset_xy_mm: [1.5, 0.0]
+
+    action_name: "/robot/pick_and_place"
+    home_service_name: "/robot/home"
+    stop_service_name: "/robot/stop"
+    pose_service_name: "/robot/get_current_pose"

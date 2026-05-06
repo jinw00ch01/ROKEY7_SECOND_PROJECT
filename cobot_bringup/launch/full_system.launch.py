@@ -1,27 +1,126 @@
-from launch import LaunchDescription
-from launch.actions import IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource
-from ament_index_python.packages import get_package_share_directory
+"""Compose perception + robot + host_system into one launch.
+
+All toggles flow down to the sub-launches via launch_arguments. Examples:
+
+# Phase A virtual+mock e2e (no hardware)
+  ros2 launch cobot_bringup full_system.launch.py \\
+      enable_realsense:=false enable_dsr_bringup:=false task_autostart:=false
+
+# Phase A' real-mode entry (with both hardware)
+  ros2 launch cobot_bringup full_system.launch.py \\
+      enable_realsense:=true enable_dsr_bringup:=true \\
+      dsr_mode:=real dsr_host:=192.168.137.100
+  # plus override yaml backends:
+  #   cobot_robot_control: motion_backend=real, gripper_backend=modbus
+  #   cobot_perception:    tcp_source=service (once implemented)
+"""
+
 import os
 
+from ament_index_python.packages import get_package_share_directory
+from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+from launch.substitutions import LaunchConfiguration
 
-def generate_launch_description():
-    bringup_dir = get_package_share_directory('cobot_bringup')
 
-    return LaunchDescription([
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(bringup_dir, 'launch', 'host_system.launch.py')
-            )
+def generate_launch_description() -> LaunchDescription:
+    bringup_share = get_package_share_directory("cobot_bringup")
+
+    pass_args = [
+        # perception
+        "enable_realsense",
+        "config_object_detection",
+        "config_perception",
+        # robot
+        "enable_dsr_bringup",
+        "dsr_mode",
+        "dsr_host",
+        "dsr_port",
+        "dsr_model",
+        "dsr_namespace",
+        "config_robot_control",
+        # host
+        "config_task_manager",
+        "task_autostart",
+    ]
+
+    args = [
+        DeclareLaunchArgument("enable_realsense", default_value="true"),
+        DeclareLaunchArgument("enable_dsr_bringup", default_value="false"),
+        DeclareLaunchArgument("dsr_mode", default_value="virtual"),
+        DeclareLaunchArgument("dsr_host", default_value="192.168.1.100"),
+        DeclareLaunchArgument("dsr_port", default_value="12345"),
+        DeclareLaunchArgument("dsr_model", default_value="m0609"),
+        DeclareLaunchArgument("dsr_namespace", default_value="dsr01"),
+        DeclareLaunchArgument("task_autostart", default_value="true"),
+        DeclareLaunchArgument(
+            "config_object_detection",
+            default_value=os.path.join(
+                get_package_share_directory("cobot_object_detection"),
+                "config", "object_detection.yaml",
+            ),
         ),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(bringup_dir, 'launch', 'perception.launch.py')
-            )
+        DeclareLaunchArgument(
+            "config_perception",
+            default_value=os.path.join(
+                get_package_share_directory("cobot_perception"),
+                "config", "perception.yaml",
+            ),
         ),
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                os.path.join(bringup_dir, 'launch', 'robot.launch.py')
-            )
+        DeclareLaunchArgument(
+            "config_robot_control",
+            default_value=os.path.join(
+                get_package_share_directory("cobot_robot_control"),
+                "config", "robot_control.yaml",
+            ),
         ),
-    ])
+        DeclareLaunchArgument(
+            "config_task_manager",
+            default_value=os.path.join(
+                get_package_share_directory("cobot_task_manager"),
+                "config", "task_manager.yaml",
+            ),
+        ),
+    ]
+
+    def forward(name: str) -> tuple:
+        return (name, LaunchConfiguration(name))
+
+    perception = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(bringup_share, "launch", "perception.launch.py")
+        ),
+        launch_arguments=[
+            forward("enable_realsense"),
+            forward("config_object_detection"),
+            forward("config_perception"),
+        ],
+    )
+
+    robot = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(bringup_share, "launch", "robot.launch.py")
+        ),
+        launch_arguments=[
+            forward("enable_dsr_bringup"),
+            forward("dsr_mode"),
+            forward("dsr_host"),
+            forward("dsr_port"),
+            forward("dsr_model"),
+            forward("dsr_namespace"),
+            forward("config_robot_control"),
+        ],
+    )
+
+    host = IncludeLaunchDescription(
+        PythonLaunchDescriptionSource(
+            os.path.join(bringup_share, "launch", "host_system.launch.py")
+        ),
+        launch_arguments=[
+            forward("config_task_manager"),
+            forward("task_autostart"),
+        ],
+    )
+
+    return LaunchDescription(args + [perception, robot, host])

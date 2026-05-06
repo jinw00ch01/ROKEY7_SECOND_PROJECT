@@ -3,20 +3,19 @@
 <package format="3">
   <name>cobot_bringup</name>
   <version>0.0.0</version>
-  <description>Launch files for cobot2 system</description>
+  <description>Composite launch files for the cobot2 nut pick-and-place stack.</description>
   <maintainer email="user@todo.todo">user</maintainer>
   <license>Apache-2.0</license>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <exec_depend>cobot_voice</exec_depend>
-  <exec_depend>cobot_policy</exec_depend>
-  <exec_depend>cobot_task_manager</exec_depend>
+  <exec_depend>cobot_msgs</exec_depend>
+  <exec_depend>cobot_object_detection</exec_depend>
   <exec_depend>cobot_perception</exec_depend>
   <exec_depend>cobot_robot_control</exec_depend>
-  <exec_depend>cobot_safety</exec_depend>
-  <exec_depend>cobot_config</exec_depend>
-  <exec_depend>cobot_msgs</exec_depend>
+  <exec_depend>cobot_task_manager</exec_depend>
+  <exec_depend>realsense2_camera</exec_depend>
+  <exec_depend>dsr_bringup2</exec_depend>
 
   <export>
     <build_type>ament_cmake</build_type>

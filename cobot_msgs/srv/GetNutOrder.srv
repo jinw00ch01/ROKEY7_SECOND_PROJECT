@@ -1,0 +1,10 @@
+# Read-only nut order from the collaborator-managed database.
+# Returns the count of each nut type to pick.
+
+---
+int32 almond
+int32 cashew
+int32 pistachio
+int32 walnut
+bool success
+string message            # populated with the reason on failure
