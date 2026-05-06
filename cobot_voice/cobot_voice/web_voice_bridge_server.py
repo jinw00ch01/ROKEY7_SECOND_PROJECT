@@ -3,7 +3,23 @@ import json
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from cobot_voice.firebase_bridge import publish_error
 from cobot_voice.voice_web_demo import VoiceWebDemo
+
+
+MODE_TO_DISPLAY_STATE = {
+    "idle": "idle",
+    "wake_detected": "wake_detected",
+    "listening": "listening_state",
+    "transcribing": "listening_state",
+    "processing": "recommending",
+    "speaking": "asking_state",
+    "error": "error",
+}
+
+
+def map_mode_to_display_state(mode):
+    return MODE_TO_DISPLAY_STATE.get(str(mode or "").strip(), None)
 
 
 class WebVoiceBridge:
@@ -15,13 +31,15 @@ class WebVoiceBridge:
         self.audio_requested = False
 
     def set_state(self, payload):
+        mode = payload.get("mode", "idle")
         self.demo.set_state(
-            mode=payload.get("mode", "idle"),
+            mode=mode,
             wakeWordDetected=bool(payload.get("wakeWordDetected", False)),
             commandText=payload.get("commandText", ""),
             parsedAction=payload.get("parsedAction", ""),
             targets=payload.get("targets", []),
         )
+
         return {"ok": True}
 
     def process_command(self, payload):
@@ -73,6 +91,7 @@ class WebVoiceBridge:
                 parsedAction="",
                 targets=[],
             )
+            publish_error(str(exc))
         finally:
             with self.audio_lock:
                 self.audio_requested = False

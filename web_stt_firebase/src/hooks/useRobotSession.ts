@@ -7,9 +7,9 @@ import type {
   Intensity,
   NutClass,
   NutComboItem,
+  FirestoreConnection,
   RobotSession,
   RobotSessionTheme,
-  RobotStateConnection,
 } from "../lib/types";
 
 const displayStates = new Set<DisplayState>([
@@ -171,7 +171,7 @@ export function useRobotSession() {
   const [robotSession, setRobotSession] =
     useState<RobotSession>(defaultRobotSession);
   const [connection, setConnection] =
-    useState<RobotStateConnection>("connecting");
+    useState<FirestoreConnection>("connecting");
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {

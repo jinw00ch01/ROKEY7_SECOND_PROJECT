@@ -7,18 +7,10 @@ export type RobotMode =
   | "transcribing"
   | "processing"
   | "speaking"
+  | "completed"
   | "error";
 
-export type RobotState = {
-  mode: RobotMode;
-  wakeWordDetected: boolean;
-  commandText: string;
-  parsedAction?: string;
-  targets?: string[];
-  updatedAt?: Timestamp;
-};
-
-export type RobotStateConnection = "connecting" | "live" | "missing" | "error";
+export type FirestoreConnection = "connecting" | "live" | "missing" | "error";
 
 export type DisplayState =
   | "idle"

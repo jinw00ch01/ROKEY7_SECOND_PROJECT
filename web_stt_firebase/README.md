@@ -1,6 +1,6 @@
 # Web STT Firebase
 
-React/Vite display for the LOKI robot state stored in Firebase Firestore. The app listens to `robot_state/loki` and renders the current mode and command over a Three.js terrain visualization.
+React/Vite display for the LOKI robot session stored in Firebase Firestore. The app listens to `robot_session/current` and renders the current session state over a Three.js terrain visualization.
 
 ## Project Layout
 
@@ -25,4 +25,4 @@ npm run build
 npm run lint
 ```
 
-The Python helper in `scripts/firebase/update_robot_state.py` expects a Firebase service account JSON path to be configured before use.
+The Python helper in `scripts/firebase/update_robot_session.py` publishes mock data to `robot_session/current` and expects a Firebase service account JSON path to be configured before use.

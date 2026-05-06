@@ -5,8 +5,6 @@ import * as THREE from "three";
 import { Terrain } from "./components/Terrain";
 import type { ColorCommand } from "./components/terrain/colorThemes";
 import { useBrowserVoiceCommand } from "./hooks/useBrowserVoiceCommand";
-import { useKeyboardCommand } from "./hooks/useKeyboardCommand";
-import { useRobotState } from "./hooks/useRobotState";
 import { useRobotSession } from "./hooks/useRobotSession";
 import type {
   CategoryId,
@@ -26,21 +24,6 @@ const NUT_COLOR_COMMANDS: Record<string, ColorCommand> = {
   cashew: "r",
   walnut: "t",
 };
-const NUT_ALIASES: Array<[string, string]> = [
-  ["almonds", "almond"],
-  ["almond", "almond"],
-  ["아몬드", "almond"],
-  ["pistachios", "pistachio"],
-  ["pistachio", "pistachio"],
-  ["pistachiio", "pistachio"],
-  ["피스타치오", "pistachio"],
-  ["cashews", "cashew"],
-  ["cashew", "cashew"],
-  ["캐슈", "cashew"],
-  ["walnuts", "walnut"],
-  ["walnut", "walnut"],
-  ["호두", "walnut"],
-];
 const DEFAULT_SESSION_THEME: RobotSessionTheme = {
   primary_category: "",
   primary_nut: "",
@@ -147,26 +130,6 @@ const PROGRESS_STEPS: Array<{
   { label: "로봇 준비", states: ["dispatching"] },
   { label: "완료", states: ["completed"] },
 ];
-
-function getDetectedNut(
-  targets: string[] | undefined,
-  commandText: string,
-): string {
-  const targetNut = targets
-    ?.map((target) => target.toLowerCase())
-    .find((target) => NUT_COLOR_COMMANDS[target]);
-
-  if (targetNut) {
-    return targetNut;
-  }
-
-  const normalizedCommand = commandText.toLowerCase();
-  const aliasMatch = NUT_ALIASES.find(([alias]) =>
-    normalizedCommand.includes(alias),
-  );
-
-  return aliasMatch?.[1] ?? "";
-}
 
 function getTerrainColorCommand(activeNut: string): ColorCommand {
   return NUT_COLOR_COMMANDS[activeNut] ?? "q";
@@ -296,6 +259,7 @@ function mapDisplayStateToSceneMode(state: DisplayState): RobotMode {
   if (state === "recommending") return "processing";
   if (state === "result_ready") return "processing";
   if (state === "dispatching") return "processing";
+  if (state === "completed") return "completed";
   if (state === "error") return "error";
   return "idle";
 }
@@ -325,6 +289,7 @@ function getLightIntensity(state: DisplayState) {
   if (state === "recommending") return 1.7;
   if (state === "result_ready") return 1.45;
   if (state === "dispatching") return 1.6;
+  if (state === "completed") return 1.35;
   if (state === "error") return 1.75;
   return 1.0;
 }
@@ -383,13 +348,11 @@ function ThemedScene({
 }
 
 export default function App() {
-  const { robotState, connection, errorMessage } = useRobotState();
   const {
     connection: sessionConnection,
     errorMessage: sessionErrorMessage,
     robotSession,
   } = useRobotSession();
-  const { keyboardCommand } = useKeyboardCommand();
   const browserVoice = useBrowserVoiceCommand();
   const {
     errorMessage: voiceErrorMessage,
@@ -398,14 +361,8 @@ export default function App() {
     start: startVoice,
     stop: stopVoice,
   } = browserVoice;
-  const activeCommand =
-    robotSession.transcript || robotState.commandText || keyboardCommand;
-  const detectedNut = getDetectedNut(
-    robotState.targets,
-    robotState.commandText,
-  );
   const activeNut =
-    robotSession.theme.primary_nut || robotSession.combo[0]?.nut || detectedNut;
+    robotSession.theme.primary_nut || robotSession.combo[0]?.nut || "";
   const terrainColorCommand = getTerrainColorCommand(activeNut);
   const display = setDisplayState(robotSession.display_state, robotSession);
   const resolvedTheme = resolveSessionTheme(robotSession);
@@ -459,9 +416,7 @@ export default function App() {
       >
         <h1 style={{ margin: 0, fontSize: 28, color: "inherit" }}>LOKI</h1>
         <p>Session: {sessionConnection}</p>
-        <p>Robot: {connection}</p>
         {sessionErrorMessage ? <p>Session error: {sessionErrorMessage}</p> : null}
-        {errorMessage ? <p>Robot error: {errorMessage}</p> : null}
         <div
           style={{
             background: themeStyle.panelBackground,
@@ -611,9 +566,6 @@ export default function App() {
         {voiceErrorMessage ? <p>Voice error: {voiceErrorMessage}</p> : null}
         <p>Active Nut: {activeNut || "none"}</p>
         <p>Color: {terrainColorCommand.toUpperCase()}</p>
-        <p>Legacy Command: {activeCommand || "-"}</p>
-        <p>Legacy Action: {robotState.parsedAction || "-"}</p>
-        <p>Legacy Targets: {robotState.targets?.join(", ") || "-"}</p>
       </div>
     </div>
   );
