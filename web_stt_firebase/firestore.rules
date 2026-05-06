@@ -2,7 +2,7 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /robot_state/loki {
+    match /robot_session/current {
       allow read: if true;
       allow write: if false;
     }

@@ -8,6 +8,7 @@ export function getModeIntensity(robotMode: RobotMode) {
   if (robotMode === "listening") return 1.45;
   if (robotMode === "transcribing") return 1.95;
   if (robotMode === "processing") return 2.00;
+  if (robotMode === "completed") return 1.15;
   if (robotMode === "error") return 2.1;
   return 0.65;
 }
@@ -17,6 +18,7 @@ export function getVoiceWaveScale(robotMode: RobotMode) {
   if (robotMode === "listening") return 1.85;
   if (robotMode === "transcribing") return 2.7;
   if (robotMode === "processing") return 3.45;
+  if (robotMode === "completed") return 1.35;
   if (robotMode === "error") return 3.1;
   return 0.75;
 }

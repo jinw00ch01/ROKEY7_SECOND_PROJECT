@@ -2,9 +2,11 @@ import os
 import numpy as np
 from openwakeword.model import Model
 from scipy.signal import resample
-from ament_index_python.packages import get_package_share_directory
 
-package_path = get_package_share_directory("cobot_voice")
+from cobot_voice.env import get_package_path
+
+
+package_path = str(get_package_path())
 MODEL_NAME = "hello_rokey_8332_32.tflite"
 MODEL_PATH = os.path.join(package_path, f"resource/{MODEL_NAME}")
 

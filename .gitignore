@@ -43,3 +43,4 @@ cobot_OD_obb_small/**/*.png
 cobot_OD_obb_small/**/*.cache
 cobot_OD_obb_small/**/*.pt
 !cobot_OD_obb_small/train_phase2_20260505_203819/weights/best.pt
+cobot_voice/output/

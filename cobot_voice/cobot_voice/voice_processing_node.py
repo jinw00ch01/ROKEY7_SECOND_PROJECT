@@ -1,12 +1,10 @@
-import os
 import threading
 
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-from ament_index_python.packages import get_package_share_directory
-from dotenv import load_dotenv
 
+from cobot_voice.env import get_required_env
 from cobot_voice.stt import STT
 from cobot_voice.wakeup_word import WakeupWord
 from cobot_voice.mic_controller import MicController
@@ -19,9 +17,7 @@ class VoiceProcessingNode(Node):
         super().__init__('voice_processing_node')
 
         # Load environment
-        package_path = get_package_share_directory("cobot_voice")
-        load_dotenv(dotenv_path=os.path.join(package_path, "resource", ".env"))
-        openai_api_key = os.getenv("OPENAI_API_KEY")
+        openai_api_key = get_required_env("OPENAI_API_KEY")
 
         # Initialize components
         self.stt = STT(openai_api_key=openai_api_key)

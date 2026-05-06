@@ -1,7 +1,7 @@
 import { useFrame } from "@react-three/fiber";
 import { useMemo, useRef } from "react";
 import * as THREE from "three";
-import type { RobotMode } from "../lib/types";
+import type { RobotMode, RobotSessionTheme } from "../lib/types";
 import type { ColorCommand } from "./terrain/colorThemes";
 import {
   colorThemes,
@@ -29,6 +29,7 @@ import {
 type TerrainProps = {
   colorCommand: string;
   mode: RobotMode;
+  theme?: RobotSessionTheme;
 };
 
 function isColorCommand(value: string): value is ColorCommand {
@@ -41,7 +42,42 @@ function isColorCommand(value: string): value is ColorCommand {
   );
 }
 
-export function Terrain({ colorCommand, mode }: TerrainProps) {
+function createColorThemeFromSessionTheme(
+  theme: RobotSessionTheme | undefined,
+) {
+  if (!theme?.primary_color) return null;
+
+  try {
+    const surfaceColor = new THREE.Color(theme.primary_color);
+    const surfaceEmissive = new THREE.Color(
+      theme.secondary_color || theme.primary_color,
+    );
+    const accentColor = new THREE.Color(
+      theme.accent_color || theme.primary_color,
+    );
+    const primaryHsl = { h: 0, s: 0, l: 0 };
+    const accentHsl = { h: 0, s: 0, l: 0 };
+
+    surfaceColor.getHSL(primaryHsl);
+    accentColor.getHSL(accentHsl);
+
+    return {
+      surfaceColor,
+      surfaceEmissive,
+      ribbonHueLow: primaryHsl.h,
+      ribbonHueHigh: accentHsl.h,
+      ribbonSaturationLow: Math.max(primaryHsl.s, 0.62),
+      ribbonSaturationHigh: Math.max(accentHsl.s, 0.82),
+      ribbonLightnessLow: Math.max(primaryHsl.l * 0.52, 0.18),
+      ribbonLightnessHigh: Math.min(Math.max(accentHsl.l * 1.18, 0.58), 0.78),
+    };
+  } catch (error) {
+    console.warn("Failed to create terrain color theme.", error);
+    return null;
+  }
+}
+
+export function Terrain({ colorCommand, mode, theme }: TerrainProps) {
   const terrainMeshRef = useRef<THREE.Mesh>(null);
   const electricMeshRef = useRef<THREE.Mesh>(null);
   const terrainMaterialRef = useRef<THREE.MeshStandardMaterial>(null);
@@ -65,6 +101,10 @@ export function Terrain({ colorCommand, mode }: TerrainProps) {
     }),
     [],
   );
+  const sessionColorTheme = useMemo(
+    () => createColorThemeFromSessionTheme(theme),
+    [theme],
+  );
 
   useFrame(({ clock }, delta) => {
     if (!terrainMeshRef.current || !electricMeshRef.current) return;
@@ -74,6 +114,7 @@ export function Terrain({ colorCommand, mode }: TerrainProps) {
     const pulseTime = elapsed * 0.85;
     const targetModeIntensity = getModeIntensity(mode);
     const targetColorTheme =
+      sessionColorTheme ??
       colorThemes[isColorCommand(colorCommand) ? colorCommand : "q"];
     const targetCommandWaveScale = getVoiceWaveScale(mode);
     const smoothingAmount = 1 - Math.exp(-delta * 1.45);
