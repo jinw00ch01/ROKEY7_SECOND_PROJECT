@@ -1,0 +1,74 @@
+{
+  "intensity_counts": {
+    "low": 1,
+    "normal": 2,
+    "high": 3
+  },
+  "max_total_count": 6,
+  "single_category_rules": {
+    "description": "Use the category's recommended nut with count from intensity_counts.",
+    "count_source": "intensity_counts",
+    "examples": {
+      "fatigue": {
+        "nut": "cashew"
+      },
+      "blood_sugar": {
+        "nut": "almond"
+      },
+      "diet": {
+        "nut": "pistachio"
+      },
+      "focus": {
+        "nut": "walnut"
+      }
+    }
+  },
+  "composite_category_rules": {
+    "description": "Combine each matched category's recommended nut. The total count must not exceed max_total_count.",
+    "strategy": "per_category_intensity_count_capped_by_max_total",
+    "overflow_strategy": "reduce_lower_priority_categories_first",
+    "category_order": [
+      "fatigue",
+      "blood_sugar",
+      "diet",
+      "focus"
+    ],
+    "examples": [
+      {
+        "categories": [
+          "fatigue",
+          "focus"
+        ],
+        "intensity": "normal",
+        "combo": {
+          "cashew": 2,
+          "walnut": 2
+        }
+      },
+      {
+        "categories": [
+          "blood_sugar",
+          "diet"
+        ],
+        "intensity": "high",
+        "combo": {
+          "almond": 3,
+          "pistachio": 3
+        }
+      },
+      {
+        "categories": [
+          "fatigue",
+          "blood_sugar",
+          "diet",
+          "focus"
+        ],
+        "intensity": "high",
+        "combo": {
+          "cashew": 3,
+          "almond": 3
+        }
+      }
+    ]
+  }
+}

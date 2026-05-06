@@ -19,3 +19,4 @@ requirement/
 # Local editor and debug artifacts
 .vscode/
 *.log
+cobot_voice/output/

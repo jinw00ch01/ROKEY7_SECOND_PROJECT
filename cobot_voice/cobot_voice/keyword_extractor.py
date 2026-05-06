@@ -1,7 +1,21 @@
+import json
+import logging
+from datetime import datetime
+from pathlib import Path
+
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 
+from cobot_voice.nut_recommendation import recommend_nuts
 from cobot_voice.object_aliases import NUT_KEYWORD_MAP, NUT_NAMES, find_nut_targets
+
+
+PROJECT_DIR = Path(__file__).resolve().parents[1]
+DEFAULT_OUTPUT_PATH = PROJECT_DIR / "output" / "latest_order.json"
+VALID_NUTS = {"almond", "cashew", "pistachio", "walnut"}
+VALID_INTENSITIES = {"low", "normal", "high"}
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 PROMPT_CONTENT = """
 당신은 사용자의 문장을 분석하여 action과 견과류 키워드를 추출해야 합니다.
@@ -92,3 +106,108 @@ class KeywordExtractor:
                 targets.append(target)
 
         return action, targets
+
+
+def build_latest_order(text):
+    recommendation = recommend_nuts(text)
+    return build_latest_order_from_recommendation(recommendation)
+
+
+def build_latest_order_from_recommendation(recommendation):
+    combo = normalize_combo(recommendation.get("combo", []))
+    categories = list(recommendation.get("categories", []))
+    success = bool(categories and combo)
+    intensity = normalize_intensity(recommendation.get("intensity", "normal"))
+
+    return {
+        "request_id": datetime.now().strftime("%Y%m%d_%H%M%S"),
+        "recognized_text": str(recommendation.get("recognized_text", "")),
+        "categories": categories,
+        "intensity": intensity,
+        "combo": combo,
+        "combo_text": str(recommendation.get("combo_text", "")),
+        "success": success,
+    }
+
+
+def normalize_combo(combo):
+    normalized_by_nut = {}
+    ordered_nuts = []
+    if not isinstance(combo, list):
+        logger.warning("Invalid combo type %s; using empty combo.", type(combo).__name__)
+        return []
+
+    for item in combo:
+        if not isinstance(item, dict):
+            logger.warning("Invalid combo item %r; skipped.", item)
+            continue
+
+        nut = item.get("nut")
+        if nut not in VALID_NUTS:
+            logger.warning("Unknown nut %r; skipped.", nut)
+            continue
+
+        try:
+            count = int(item.get("count", 0))
+        except (TypeError, ValueError):
+            logger.warning("Invalid count for nut %r: %r; skipped.", nut, item.get("count"))
+            continue
+
+        if count <= 0:
+            logger.warning("Non-positive count for nut %r: %s; skipped.", nut, count)
+            continue
+
+        if nut not in normalized_by_nut:
+            normalized_by_nut[nut] = 0
+            ordered_nuts.append(nut)
+        normalized_by_nut[nut] += count
+
+    return [{"nut": nut, "count": normalized_by_nut[nut]} for nut in ordered_nuts]
+
+
+def normalize_intensity(intensity):
+    intensity = str(intensity or "normal")
+    if intensity not in VALID_INTENSITIES:
+        logger.warning("Unknown intensity %r; defaulting to normal.", intensity)
+        return "normal"
+    return intensity
+
+
+def save_latest_order_data(order, output_path=DEFAULT_OUTPUT_PATH):
+    order = normalize_latest_order(order)
+    output_path = Path(output_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    with open(output_path, "w", encoding="utf-8") as file:
+        json.dump(order, file, ensure_ascii=False, indent=2)
+        file.write("\n")
+
+    logger.info("Saved latest order: %s success=%s", output_path, order["success"])
+    return order
+
+
+def normalize_latest_order(order):
+    combo = normalize_combo(order.get("combo", []))
+    categories = list(order.get("categories", []))
+    success = bool(order.get("success", False) and categories and combo)
+    intensity = normalize_intensity(order.get("intensity", "normal"))
+
+    return {
+        "request_id": str(order.get("request_id", datetime.now().strftime("%Y%m%d_%H%M%S"))),
+        "recognized_text": str(order.get("recognized_text", "")),
+        "categories": categories,
+        "intensity": intensity,
+        "combo": combo,
+        "combo_text": str(order.get("combo_text", "")),
+        "success": success,
+    }
+
+
+def save_latest_order(text, output_path=DEFAULT_OUTPUT_PATH):
+    order = build_latest_order(text)
+    return save_latest_order_data(order, output_path)
+
+
+def save_recommendation_order(recommendation, output_path=DEFAULT_OUTPUT_PATH):
+    order = build_latest_order_from_recommendation(recommendation)
+    return save_latest_order_data(order, output_path)
