@@ -71,7 +71,11 @@ class VoiceWebDemo:
         self._running = False
 
     def process_text(self, text: str):
+        from cobot_voice.firebase_bridge import publish_recommendation_result, reset_session
+        from cobot_voice.keyword_extractor import save_latest_order
+
         clean_text = text.strip()
+        reset_session()
         self._update_state(
             mode="processing",
             wakeWordDetected=True,
@@ -79,6 +83,14 @@ class VoiceWebDemo:
             parsedAction="",
             targets=[],
         )
+
+        order = save_latest_order(clean_text)
+        if order["success"]:
+            publish_recommendation_result(order)
+        else:
+            from cobot_voice.firebase_bridge import publish_error
+
+            publish_error("추천 결과를 생성하지 못했습니다.")
 
         action, targets = self.extractor.extract(clean_text)
         self._update_state(
@@ -101,38 +113,21 @@ class VoiceWebDemo:
         return action, targets
 
     def run_once(self):
+        from cobot_voice.voice_order_flow import run_recommendation_flow
+
         if self.stt is None or self.mic is None or self.wakeup is None:
             raise RuntimeError("Audio components were not initialized")
 
         self._running = True
-        self._update_state(
-            mode="idle",
-            wakeWordDetected=False,
-            commandText="",
-            parsedAction="",
-            targets=[],
-        )
-
-        self.mic.open_stream()
-        self.wakeup.set_stream(self.mic.stream)
-        print("Listening for wake word: hello rokey")
-
         try:
-            while self._running:
-                if self.wakeup.is_wakeup():
-                    print("Wake word detected. Recording command...")
-                    self._update_state(mode="wake_detected", wakeWordDetected=True)
-                    self.mic.close_stream()
-
-                    self._update_state(mode="listening", wakeWordDetected=True)
-                    text = self.stt.speech2text(
-                        status_callback=lambda mode: self._update_state(
-                            mode=mode,
-                            wakeWordDetected=True,
-                        )
-                    )
-                    self.process_text(text)
-                    break
+            return run_recommendation_flow(
+                stt=self.stt,
+                wakeup=self.wakeup,
+                mic=self.mic,
+                debug=False,
+                wait_for_wake=True,
+                should_continue=lambda: self._running,
+            )
         finally:
             self._running = False
             self.mic.close_stream()
