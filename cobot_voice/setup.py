@@ -15,7 +15,7 @@ setup(
         ('share/' + package_name + '/resource', glob.glob('resource/.env')),
         ('share/' + package_name + '/config', glob.glob('config/*.json')),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'python-dotenv'],
     zip_safe=True,
     maintainer='choijinwoo',
     maintainer_email='choijinwoo@todo.todo',

@@ -1,9 +1,17 @@
 import argparse
 import json
 import logging
+import os
+import shutil
+import subprocess
+import tempfile
 import time
+import urllib.error
+import urllib.parse
+import urllib.request
 
 from cobot_voice.keyword_extractor import DEFAULT_OUTPUT_PATH, save_recommendation_order
+from cobot_voice.env import load_package_env
 from cobot_voice.firebase_bridge import (
     build_theme,
     publish_completed,
@@ -28,6 +36,15 @@ from cobot_voice.question_flow import get_message
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
+ELEVENLABS_TTS_URL = "https://api.elevenlabs.io/v1/text-to-speech/{voice_id}"
+ELEVENLABS_ADAM_VOICE_ID = "pNInz6obpgDQGcFmaJgB"
+ELEVENLABS_DEFAULT_MODEL_ID = "eleven_flash_v2_5"
+ELEVENLABS_DEFAULT_LANGUAGE_CODE = "ko"
+ELEVENLABS_DEFAULT_OUTPUT_FORMAT = "mp3_44100_128"
+TTS_TIMEOUT_SECONDS = 20
+TTS_DISABLED_VALUES = {"0", "false", "no", "off"}
+ELEVENLABS_PROVIDER_VALUES = {"elevenlabs", "eleven_labs", "eleven"}
+SPD_PROVIDER_VALUES = {"spd", "spd-say", "spdsay"}
 
 
 def configure_logging(debug=False):
@@ -38,8 +55,197 @@ def configure_logging(debug=False):
     )
 
 
+def _tts_enabled():
+    load_package_env()
+    value = os.getenv("COBOT_TTS_ENABLED", "1").strip().lower()
+    return value not in TTS_DISABLED_VALUES
+
+
+def _tts_provider():
+    load_package_env()
+    return os.getenv("COBOT_TTS_PROVIDER", "auto").strip().lower()
+
+
+def _get_elevenlabs_api_key():
+    load_package_env()
+    return os.getenv("ELEVENLABS_API_KEY") or os.getenv("ELEVEN_LABS_API_KEY")
+
+
+def _parse_float_env(name, default):
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return default
+
+    try:
+        return float(value)
+    except ValueError:
+        logger.warning("Ignoring invalid %s value: %s", name, value)
+        return default
+
+
+def _parse_bool_env(name, default):
+    value = os.getenv(name)
+    if value is None or not value.strip():
+        return default
+
+    return value.strip().lower() not in TTS_DISABLED_VALUES
+
+
+def _build_elevenlabs_payload(text):
+    payload = {
+        "text": text,
+        "model_id": os.getenv("ELEVENLABS_MODEL_ID", ELEVENLABS_DEFAULT_MODEL_ID),
+        "language_code": os.getenv(
+            "ELEVENLABS_LANGUAGE_CODE",
+            ELEVENLABS_DEFAULT_LANGUAGE_CODE,
+        ),
+        "voice_settings": {
+            "stability": _parse_float_env("ELEVENLABS_STABILITY", 0.5),
+            "similarity_boost": _parse_float_env(
+                "ELEVENLABS_SIMILARITY_BOOST",
+                0.75,
+            ),
+            "style": _parse_float_env("ELEVENLABS_STYLE", 0.0),
+            "use_speaker_boost": _parse_bool_env(
+                "ELEVENLABS_USE_SPEAKER_BOOST",
+                True,
+            ),
+        },
+    }
+
+    return payload
+
+
+def _play_audio_file(path):
+    command = shutil.which("ffplay")
+    if command is None:
+        logger.warning("TTS audio generated but ffplay is not installed.")
+        return False
+
+    subprocess.run(
+        [
+            command,
+            "-nodisp",
+            "-autoexit",
+            "-loglevel",
+            "error",
+            path,
+        ],
+        check=True,
+        timeout=TTS_TIMEOUT_SECONDS,
+    )
+    return True
+
+
+def _run_elevenlabs(text):
+    api_key = _get_elevenlabs_api_key()
+    if not api_key:
+        return False
+
+    voice_id = os.getenv("ELEVENLABS_VOICE_ID", ELEVENLABS_ADAM_VOICE_ID)
+    output_format = os.getenv(
+        "ELEVENLABS_OUTPUT_FORMAT",
+        ELEVENLABS_DEFAULT_OUTPUT_FORMAT,
+    )
+    url = ELEVENLABS_TTS_URL.format(voice_id=urllib.parse.quote(voice_id))
+    url = f"{url}?{urllib.parse.urlencode({'output_format': output_format})}"
+    body = json.dumps(_build_elevenlabs_payload(text)).encode("utf-8")
+    request = urllib.request.Request(
+        url,
+        data=body,
+        headers={
+            "xi-api-key": api_key,
+            "Content-Type": "application/json",
+            "Accept": "audio/mpeg",
+        },
+        method="POST",
+    )
+
+    audio_path = ""
+    try:
+        with urllib.request.urlopen(request, timeout=TTS_TIMEOUT_SECONDS) as response:
+            audio_data = response.read()
+
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=".mp3",
+            prefix="cobot_elevenlabs_",
+        ) as audio_file:
+            audio_file.write(audio_data)
+            audio_path = audio_file.name
+
+        return _play_audio_file(audio_path)
+    except urllib.error.HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="replace")
+        logger.warning("ElevenLabs TTS request failed: %s %s", exc.code, error_body)
+        return False
+    except Exception as exc:
+        logger.warning("ElevenLabs TTS failed: %s", exc)
+        return False
+    finally:
+        if audio_path:
+            try:
+                os.unlink(audio_path)
+            except OSError:
+                pass
+
+
+def _run_spd_say(text):
+    command = shutil.which("spd-say")
+    if command is None:
+        return False
+
+    subprocess.run(
+        [
+            command,
+            "--wait",
+            "--language",
+            "ko",
+            "--rate",
+            "-10",
+            text,
+        ],
+        check=True,
+        stderr=subprocess.PIPE,
+        stdout=subprocess.DEVNULL,
+        text=True,
+        timeout=TTS_TIMEOUT_SECONDS,
+    )
+    return True
+
+
 def speak(text):
-    print(f"[TTS] {text}")
+    clean_text = str(text or "").strip()
+    if not clean_text:
+        return
+
+    print(f"[TTS] {clean_text}")
+    if not _tts_enabled():
+        return
+
+    try:
+        provider = _tts_provider()
+        if provider in ELEVENLABS_PROVIDER_VALUES:
+            if not _get_elevenlabs_api_key():
+                logger.warning(
+                    "COBOT_TTS_PROVIDER=elevenlabs but ELEVENLABS_API_KEY is not set."
+                )
+                return
+            if not _run_elevenlabs(clean_text):
+                logger.warning("ElevenLabs TTS requested but playback failed.")
+            return
+
+        if provider in SPD_PROVIDER_VALUES:
+            if not _run_spd_say(clean_text):
+                logger.warning("TTS skipped because spd-say is not installed.")
+            return
+
+        if _get_elevenlabs_api_key() and _run_elevenlabs(clean_text):
+            return
+        if not _run_spd_say(clean_text):
+            logger.warning("TTS skipped because spd-say is not installed.")
+    except Exception as exc:
+        logger.warning("TTS playback failed; continuing without narration: %s", exc)
 
 
 def wait_for_wake_word(wakeup, poll_interval=0.05, should_continue=None):

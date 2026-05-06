@@ -1,12 +1,9 @@
-import os
-
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
-from ament_index_python.packages import get_package_share_directory
-from dotenv import load_dotenv
 
 from cobot_msgs.msg import RobotCommand
+from cobot_voice.env import get_required_env
 from cobot_voice.keyword_extractor import KeywordExtractor
 
 
@@ -17,9 +14,7 @@ class CommandParserNode(Node):
         super().__init__('command_parser_node')
 
         # Load environment
-        package_path = get_package_share_directory("cobot_voice")
-        load_dotenv(dotenv_path=os.path.join(package_path, "resource", ".env"))
-        openai_api_key = os.getenv("OPENAI_API_KEY")
+        openai_api_key = get_required_env("OPENAI_API_KEY")
 
         # Initialize keyword extractor
         self.extractor = KeywordExtractor(openai_api_key=openai_api_key)

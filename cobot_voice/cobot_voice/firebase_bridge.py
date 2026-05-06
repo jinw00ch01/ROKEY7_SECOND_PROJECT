@@ -3,10 +3,8 @@ import os
 import queue
 import threading
 from datetime import datetime, timezone
-from pathlib import Path
 
-from dotenv import load_dotenv
-
+from cobot_voice.env import load_package_env
 
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
@@ -92,15 +90,6 @@ def _iso_timestamp():
     return datetime.now(timezone.utc).isoformat()
 
 
-def _get_env_path():
-    try:
-        from ament_index_python.packages import get_package_share_directory
-
-        return Path(get_package_share_directory("cobot_voice")) / "resource" / ".env"
-    except Exception:
-        return Path(__file__).resolve().parents[1] / "resource" / ".env"
-
-
 def _get_session_ref():
     global _SESSION_REF, _FIREBASE_UNAVAILABLE
     if _SESSION_REF is not None:
@@ -112,7 +101,7 @@ def _get_session_ref():
         import firebase_admin
         from firebase_admin import credentials, firestore
 
-        load_dotenv(_get_env_path())
+        load_package_env()
         service_account_path = os.getenv("FIREBASE_SERVICE_ACCOUNT")
 
         if not firebase_admin._apps:

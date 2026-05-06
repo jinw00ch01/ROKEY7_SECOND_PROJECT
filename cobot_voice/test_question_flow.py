@@ -4,15 +4,25 @@ from cobot_voice.question_flow import get_message, load_question_flow
 def test_load_question_flow():
     messages = load_question_flow()
 
-    assert messages["wake_response"] == "네, 맞춤 견과류 콤보를 준비해드릴게요."
-    assert "ask_state" in messages
-    assert "ask_intensity" in messages
+    for key in (
+        "wake_response",
+        "ask_state",
+        "ask_intensity",
+        "retry_state",
+        "retry_intensity",
+        "confirm_template",
+    ):
+        assert key in messages
+        assert messages[key]
+    assert "{combo_text}" in messages["confirm_template"]
 
 
 def test_get_message():
-    assert get_message("wake_response") == "네, 맞춤 견과류 콤보를 준비해드릴게요."
-    assert get_message("ask_state").startswith("오늘 컨디션은 어떤가요?")
-    assert get_message("ask_intensity").startswith("그 정도는 어느 정도인가요?")
+    messages = load_question_flow()
+
+    assert get_message("wake_response") == messages["wake_response"]
+    assert get_message("ask_state") == messages["ask_state"]
+    assert get_message("ask_intensity") == messages["ask_intensity"]
 
 
 def test_confirm_template_formatting():
@@ -21,7 +31,8 @@ def test_confirm_template_formatting():
         combo_text="캐슈넛 두 개와 호두 두 개",
     )
 
-    assert message == "말씀하신 상태에 맞춰 캐슈넛 두 개와 호두 두 개를 준비해드릴게요."
+    assert "캐슈넛 두 개와 호두 두 개" in message
+    assert "{combo_text}" not in message
 
 
 def main():

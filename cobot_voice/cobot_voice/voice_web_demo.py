@@ -1,5 +1,4 @@
 import argparse
-import os
 import time
 
 
@@ -15,29 +14,14 @@ MODE_TO_DISPLAY_STATE = {
     "error": "error",
 }
 
-
-def _get_package_path():
-    try:
-        from ament_index_python.packages import get_package_share_directory
-
-        return get_package_share_directory("cobot_voice")
-    except Exception:
-        return os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-
-
 class VoiceWebDemo:
     """Runs wake word, STT, and keyword extraction without ROS topics."""
 
     def __init__(self, enable_audio: bool = False):
-        from dotenv import load_dotenv
+        from cobot_voice.env import get_required_env
         from cobot_voice.keyword_extractor import KeywordExtractor
 
-        package_path = _get_package_path()
-        load_dotenv(dotenv_path=os.path.join(package_path, "resource", ".env"))
-
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        if not openai_api_key:
-            raise RuntimeError("OPENAI_API_KEY is not set in cobot_voice/resource/.env")
+        openai_api_key = get_required_env("OPENAI_API_KEY")
 
         self.extractor = KeywordExtractor(openai_api_key=openai_api_key)
         self.stt = None
