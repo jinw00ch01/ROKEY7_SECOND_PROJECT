@@ -59,18 +59,21 @@ def _make_object(
 
 
 def _build_scene() -> List[DetectedObject]:
-    # 4 classes x 2 instances, all inside the default workspace box
-    # (200..700, -300..300, 0..500). Different OBB areas so the
-    # bigger instance is preferred by target_selector.
+    # 4 classes x 2 instances, inside the active workspace box defined
+    # in cobot_task_manager/config/task_manager.yaml. The z gate was
+    # tightened to the observed nut-top range (40..80 mm) for real-
+    # hardware safety; mock z must mirror that or the target_selector
+    # filters every detection. Different OBB areas so target_selector
+    # prefers the larger instance.
     return [
-        _make_object("almond",    base_x=350.0, base_y=-50.0, base_z=180.0, width=50.0, height=40.0, confidence=0.95),
-        _make_object("almond",    base_x=350.0, base_y= 50.0, base_z=180.0, width=45.0, height=35.0, confidence=0.92),
-        _make_object("cashew",    base_x=400.0, base_y=-50.0, base_z=180.0, width=55.0, height=40.0, confidence=0.96, grasp_yaw=math.radians(15)),
-        _make_object("cashew",    base_x=400.0, base_y= 50.0, base_z=180.0, width=50.0, height=38.0, confidence=0.93, grasp_yaw=math.radians(20)),
-        _make_object("pistachio", base_x=450.0, base_y=-50.0, base_z=180.0, width=45.0, height=40.0, confidence=0.94),
-        _make_object("pistachio", base_x=450.0, base_y= 50.0, base_z=180.0, width=42.0, height=35.0, confidence=0.91),
-        _make_object("walnut",    base_x=500.0, base_y=-50.0, base_z=180.0, width=60.0, height=50.0, confidence=0.97, grasp_yaw=math.radians(-10)),
-        _make_object("walnut",    base_x=500.0, base_y= 50.0, base_z=180.0, width=55.0, height=45.0, confidence=0.93, grasp_yaw=math.radians(-5)),
+        _make_object("almond",    base_x=350.0, base_y=-50.0, base_z=63.0, width=50.0, height=40.0, confidence=0.95),
+        _make_object("almond",    base_x=350.0, base_y= 50.0, base_z=63.0, width=45.0, height=35.0, confidence=0.92),
+        _make_object("cashew",    base_x=400.0, base_y=-50.0, base_z=63.0, width=55.0, height=40.0, confidence=0.96, grasp_yaw=math.radians(15)),
+        _make_object("cashew",    base_x=400.0, base_y= 50.0, base_z=63.0, width=50.0, height=38.0, confidence=0.93, grasp_yaw=math.radians(20)),
+        _make_object("pistachio", base_x=450.0, base_y=-50.0, base_z=63.0, width=45.0, height=40.0, confidence=0.94),
+        _make_object("pistachio", base_x=450.0, base_y= 50.0, base_z=63.0, width=42.0, height=35.0, confidence=0.91),
+        _make_object("walnut",    base_x=500.0, base_y=-50.0, base_z=63.0, width=60.0, height=50.0, confidence=0.97, grasp_yaw=math.radians(-10)),
+        _make_object("walnut",    base_x=500.0, base_y= 50.0, base_z=63.0, width=55.0, height=45.0, confidence=0.93, grasp_yaw=math.radians(-5)),
     ]
 
 
