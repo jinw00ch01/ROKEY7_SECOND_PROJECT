@@ -5,3 +5,6 @@ conveyor_serial_node:
     serial_timeout: 1.0
     arduino_reset_delay: 2.0
     command_topic: /conveyor_cmd
+    place_ready_topic: /conveyor/place_ready
+    auto_command: R80
+    auto_run_duration_sec: 5.0

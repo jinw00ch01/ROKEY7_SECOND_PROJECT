@@ -38,3 +38,6 @@
     home_service_name: "/robot/home"
     stop_service_name: "/robot/stop"
     pose_service_name: "/robot/get_current_pose"
+    place_ready_topic: "/conveyor/place_ready"
+    place_y_margin_mm: 3.0
+    place_ready_publish_period_sec: 0.1
