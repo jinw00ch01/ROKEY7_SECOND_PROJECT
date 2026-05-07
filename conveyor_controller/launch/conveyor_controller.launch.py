@@ -20,6 +20,8 @@ def generate_launch_description():
     port = LaunchConfiguration('port')
     baudrate = LaunchConfiguration('baudrate')
     command_topic = LaunchConfiguration('command_topic')
+    auto_command = LaunchConfiguration('auto_command')
+    auto_run_duration_sec = LaunchConfiguration('auto_run_duration_sec')
 
     return LaunchDescription([
         DeclareLaunchArgument(
@@ -42,6 +44,23 @@ def generate_launch_description():
             default_value='/conveyor_cmd',
             description='ROS topic used for conveyor commands',
         ),
+        DeclareLaunchArgument(
+            'auto_command',
+            default_value='R80',
+            description=(
+                'Conveyor command sent on each place_ready edge. '
+                'F<1-100> or R<1-100>. STOP not allowed here.'
+            ),
+        ),
+        DeclareLaunchArgument(
+            'auto_run_duration_sec',
+            default_value='5.0',
+            description=(
+                'Seconds to run after a place_ready edge before STOP. '
+                'Tune to control approximate per-nut advance distance. '
+                'Exact distance requires firmware step mode.'
+            ),
+        ),
         Node(
             package='conveyor_controller',
             executable='conveyor_serial_node',
@@ -53,6 +72,10 @@ def generate_launch_description():
                     'port': port,
                     'baudrate': ParameterValue(baudrate, value_type=int),
                     'command_topic': command_topic,
+                    'auto_command': auto_command,
+                    'auto_run_duration_sec': ParameterValue(
+                        auto_run_duration_sec, value_type=float
+                    ),
                 },
             ],
         ),

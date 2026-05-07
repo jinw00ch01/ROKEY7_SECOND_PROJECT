@@ -75,8 +75,12 @@ class ConveyorSerialNode(Node):
             'F<1-100>, R<1-100>, STOP'
         )
         self.get_logger().info(
-            f'Listening on {self.place_ready_topic}; on ready edge sends '
-            f'{self.auto_command} for {self.auto_run_duration_sec:.1f}s then STOP'
+            f'Place-ready trigger: one False->True edge on '
+            f'{self.place_ready_topic} = one movement '
+            f'(command={self.auto_command}, '
+            f'duration={self.auto_run_duration_sec:.2f}s, then STOP). '
+            f'Distance is approximate; exact distance requires firmware '
+            f'step mode.'
         )
 
     def _connect_serial(self):
@@ -131,6 +135,10 @@ class ConveyorSerialNode(Node):
             return
 
         if self._send_command(self.auto_command, source='place_ready'):
+            self.get_logger().info(
+                f'[conveyor_start] command={self.auto_command} '
+                f'duration={self.auto_run_duration_sec:.2f}s (place_ready edge)'
+            )
             self._auto_stop_timer = self.create_timer(
                 self.auto_run_duration_sec,
                 self._auto_stop_callback,
@@ -141,6 +149,10 @@ class ConveyorSerialNode(Node):
             self._auto_stop_timer.cancel()
             self._auto_stop_timer = None
         self._send_command('STOP', source='place_ready')
+        self.get_logger().info(
+            f'[conveyor_stop] command was {self.auto_command}, '
+            f'duration={self.auto_run_duration_sec:.2f}s elapsed'
+        )
 
     def _send_command(self, command, source):
         if not self._is_valid_command(command):
