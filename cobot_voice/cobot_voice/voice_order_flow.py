@@ -10,7 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from cobot_voice.keyword_extractor import DEFAULT_OUTPUT_PATH, save_recommendation_order
+from cobot_voice.keyword_extractor import DEFAULT_OUTPUT_PATH, save_recommendation_order, StateAnalyzer, IntensityAnalyzer
 from cobot_voice.env import load_package_env
 from cobot_voice.firebase_bridge import (
     build_theme,
@@ -340,22 +340,21 @@ def run_recommendation_flow(
         state_text = listen_text(stt=stt, debug=debug, prompt="상태")
         publish_transcript(state_text)
 
-        config_dir = _get_config_dir()
-        categories_config = load_json(config_dir / "keyword_categories.json")
-        categories = extract_categories(state_text, categories_config)
+
+        load_package_env()
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+        if not openai_api_key:
+            logger.warning("OPENAI_API_KEY is missing. AI analysis might fail.")
+
+        state_analyzer = StateAnalyzer(openai_api_key)
+        state_result = state_analyzer.analyze(state_text)
+        
+        category = state_result.get("category", "")
+        categories = [category] if category else []
+        reasoning_message = state_result.get("reasoning_message", "상태를 파악하기 어렵네요.")
 
         if not categories:
-            logger.info("No category found on first attempt; asking retry_state.")
-            retry_state = get_message("retry_state")
-            publish_question(retry_state, "asking_state")
-            speak(retry_state)
-            update_display_state("listening_state")
-            state_text = listen_text(stt=stt, debug=debug, prompt="상태 재입력")
-            publish_transcript(state_text)
-            categories = extract_categories(state_text, categories_config)
-
-        if not categories:
-            logger.info("No category found after retry; saving unsuccessful order.")
+            logger.info("AI could not determine category; saving unsuccessful order.")
             recommendation = {
                 "recognized_text": state_text,
                 "categories": [],
@@ -365,26 +364,48 @@ def run_recommendation_flow(
             }
             order = save_recommendation_order(recommendation)
             publish_error("상태 카테고리를 찾지 못했습니다.")
+            speak(reasoning_message)
             return order
 
         ask_intensity = get_message("ask_intensity")
+        combined_message = f"{reasoning_message} {ask_intensity}"
+        
         update_display_state(
             "asking_intensity",
             categories=categories,
             theme=build_theme(categories, []),
         )
-        publish_question(ask_intensity, "asking_intensity")
-        speak(ask_intensity)
+        publish_question(combined_message, "asking_intensity")
+        speak(combined_message)
+        
         update_display_state("listening_intensity")
         intensity_text = listen_text(stt=stt, debug=debug, prompt="강도")
         publish_transcript(" ".join(part for part in (state_text, intensity_text) if part))
 
+        intensity_analyzer = IntensityAnalyzer(openai_api_key)
+        intensity_result = intensity_analyzer.analyze(intensity_text)
+        
+        intensity = intensity_result.get("intensity", "normal")
+        intensity_reasoning = intensity_result.get("reasoning_message", "적당량으로 준비해 드릴게요.")
+
         update_display_state("recommending")
-        recommendation = build_recommendation_from_parts(state_text, intensity_text)
+        
+        config_dir = _get_config_dir()
+        categories_config = load_json(config_dir / "keyword_categories.json")
+        combo_rules = load_json(config_dir / "nut_combo_rules.json")
+        combo = build_combo(categories, intensity, combo_rules, categories_config)
+
+        recommendation = {
+            "recognized_text": " ".join(part for part in (state_text, intensity_text) if part),
+            "categories": categories,
+            "intensity": intensity,
+            "combo": combo,
+            "combo_text": format_combo_text(combo),
+        }
         order = save_recommendation_order(recommendation)
 
         if order["success"]:
-            confirm_message = get_message("confirm_template", combo_text=order["combo_text"])
+            confirm_message = f"{intensity_reasoning} {get_message('confirm_template', combo_text=order['combo_text'])}"
             order["confirm_message"] = confirm_message
             publish_recommendation_result(order)
             speak(confirm_message)

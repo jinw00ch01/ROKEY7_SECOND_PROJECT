@@ -211,3 +211,86 @@ def save_latest_order(text, output_path=DEFAULT_OUTPUT_PATH):
 def save_recommendation_order(recommendation, output_path=DEFAULT_OUTPUT_PATH):
     order = build_latest_order_from_recommendation(recommendation)
     return save_latest_order_data(order, output_path)
+
+STATE_ANALYZER_PROMPT = """
+사용자의 기분, 상태, 또는 목적을 나타내는 문장을 분석하여, 가장 적절한 카테고리를 하나 선택하고 판단 근거와 함께 어떤 견과류를 준비할지 자연스러운 안내 멘트를 작성해주세요.
+
+<선택 가능한 카테고리>
+- fatigue (피로/회복) -> 캐슈넛
+- blood_sugar (혈당 관리) -> 아몬드
+- diet (다이어트/체중) -> 피스타치오
+- focus (집중/두뇌) -> 호두
+
+<출력 형식 (반드시 JSON 형식으로 출력)>
+{
+  "category": "fatigue",
+  "reasoning_message": "요즘 많이 피곤하시군요. 피로 회복에 도움을 주는 캐슈넛을 준비해 드릴게요."
+}
+
+<사용자 입력>
+"{user_input}"
+"""
+
+INTENSITY_ANALYZER_PROMPT = """
+사용자가 원하는 견과류의 양을 나타내는 문장을 분석하여, 양(강도)을 판단하고 판단 근거와 결과를 포함한 자연스러운 안내 멘트를 작성해주세요.
+
+<양 판단 기준>
+- low (적게): 1개 (예: 조금, 맛만, 하나만)
+- normal (보통): 2개 (예: 적당히, 보통, 알아서)
+- high (많이): 3개 이상 (예: 많이, 듬뿍, 왕창)
+
+<출력 형식 (반드시 JSON 형식으로 출력)>
+{
+  "intensity": "high",
+  "reasoning_message": "기운이 팍팍 나도록 넉넉하게 준비해 드릴게요."
+}
+
+<사용자 입력>
+"{user_input}"
+"""
+
+class StateAnalyzer:
+    def __init__(self, openai_api_key):
+        self.llm = ChatOpenAI(
+            model="gpt-4o", temperature=0.2, openai_api_key=openai_api_key
+        )
+        self.prompt_template = PromptTemplate(
+            input_variables=["user_input"], template=STATE_ANALYZER_PROMPT
+        )
+        self.chain = self.prompt_template | self.llm
+
+    def analyze(self, text):
+        response = self.chain.invoke({"user_input": text})
+        try:
+            content = response.content.strip()
+            if content.startswith("```json"):
+                content = content[7:-3].strip()
+            elif content.startswith("```"):
+                content = content[3:-3].strip()
+            return json.loads(content)
+        except json.JSONDecodeError:
+            logger.error("Failed to parse StateAnalyzer JSON response: %s", response.content)
+            return {"category": "", "reasoning_message": "잘 알아듣지 못했지만, 기본 견과류를 준비해 드릴게요."}
+
+class IntensityAnalyzer:
+    def __init__(self, openai_api_key):
+        self.llm = ChatOpenAI(
+            model="gpt-4o", temperature=0.2, openai_api_key=openai_api_key
+        )
+        self.prompt_template = PromptTemplate(
+            input_variables=["user_input"], template=INTENSITY_ANALYZER_PROMPT
+        )
+        self.chain = self.prompt_template | self.llm
+
+    def analyze(self, text):
+        response = self.chain.invoke({"user_input": text})
+        try:
+            content = response.content.strip()
+            if content.startswith("```json"):
+                content = content[7:-3].strip()
+            elif content.startswith("```"):
+                content = content[3:-3].strip()
+            return json.loads(content)
+        except json.JSONDecodeError:
+            logger.error("Failed to parse IntensityAnalyzer JSON response: %s", response.content)
+            return {"intensity": "normal", "reasoning_message": "보통 양으로 준비해 드릴게요."}
