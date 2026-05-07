@@ -170,12 +170,12 @@ colcon build --symlink-install
   `web_stt_firebase/{src,public,…}` 소스 트리, 공유 단일 진실 소스인
   `pick_offsets.yaml` 등).
 
-legacy 문서인 `docs/{run_manual.md, voice_to_robot_integration_plan.md,
+legacy 문서인 `docs/_archive/{run_manual.md, voice_to_robot_integration_plan.md,
 three_firebase_bridge_*.md, nut_recommendation_*.md,
 stt_db_tts_robot_integration.md}`는 `docs/01_system_architecture.md`
-내부에 대체되었다고 명시되어 있다. 권장 경로는 삭제가 아닌
-**`docs/_archive/`로의 이전**이다. 동일한 보수적 근거에 따른다. 이
-문서들은 프로젝트의 설계 이력을 추적한다.
+내부에 대체되었다고 명시되어 있으며, **이미 `docs/_archive/`로 이전 완료**
+되었다(아래 §7의 마이그레이션 명령 참고). 동일한 보수적 근거에 따라
+삭제하지 않고 보관한다 — 이 문서들은 프로젝트의 설계 이력을 추적한다.
 
 ---
 
@@ -322,9 +322,10 @@ rm -rf build/ install/ log/
 colcon build --symlink-install
 ```
 
-### legacy 문서 이전 (삭제 아님)
+### legacy 문서 이전 (삭제 아님) — **완료**
 
-7개 legacy `docs/*.md` 파일을 삭제하기로 결정하기 전에 이전을 선호한다.
+7개 legacy `docs/*.md` 파일은 이미 `docs/_archive/`로 이전되었다.
+실행된 명령(이력 보존을 위해 기록):
 
 ```bash
 mkdir -p docs/_archive
@@ -336,8 +337,8 @@ git mv docs/nut_recommendation_changes.md          docs/_archive/
 git mv docs/nut_recommendation_flow.md             docs/_archive/
 git mv docs/stt_db_tts_robot_integration.md       docs/_archive/
 
-# Then update the "Document set" block in docs/01_system_architecture.md
-# so the supersession note points at docs/_archive/.
+# `docs/01_system_architecture.md`의 "문서 구성" 블록도 함께 업데이트되어
+# supersession 참조가 `docs/_archive/`를 가리킨다.
 
 git commit -m "Move superseded design docs to docs/_archive/"
 ```

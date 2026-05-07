@@ -29,9 +29,10 @@
 - `docs/cleanup_deletion_proposal.md` — 아카이브된/플래그된 파일에 대한 삭제
   계획 (읽기 전용 메타 문서).
 
-legacy `docs/run_manual.md` 는 이 파일로 **대체**되었다. 오래된 경로
-(`~/cobot_ws/...`) 와 만료된 캘리브레이션 값(예: 구식 `--z-override 315`)을
-포함하므로, 진실의 출처로 사용하지 말 것.
+legacy `docs/_archive/run_manual.md` 는 이 파일로 **대체**되어
+`docs/_archive/`로 이전되었다. 오래된 경로(`~/cobot_ws/...`)와 만료된
+캘리브레이션 값(예: 구식 `--z-override 315`)을 포함하므로, 진실의
+출처로 사용하지 말 것.
 
 > **`_archive_cleanup/` 에서 어떤 것도 source 하거나 실행하지 말 것.** 해당
 > 디렉터리는 `<YYYYMMDD>` (현재 배치: `20260508`) 에 활성 트리에서 이동된
