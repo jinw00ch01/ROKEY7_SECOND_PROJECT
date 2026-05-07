@@ -40,13 +40,12 @@
     pre_grasp_min_mm: 15.0
     pre_grasp_max_mm: 80.0
 
-    # Per-class fine-tune offset added to grasp_xyz.z (mm). Negative = deeper
-    # grip (helps slipping nuts). Keep in sync with PER_CLASS_Z_OFFSET in
-    # scripts/pick_all.py and pick_one.py.
-    per_class_z_offset_almond_mm: 0.0
-    per_class_z_offset_cashew_mm: 0.0
-    per_class_z_offset_pistachio_mm: 0.0
-    per_class_z_offset_walnut_mm: -1.0
+    # Per-class fine-tune offsets are loaded from
+    # cobot_config/config/pick_offsets.yaml (shared source of truth).
+    # Set this path to override; empty string falls back to ament-share
+    # lookup, then source-tree, then built-in defaults. Env var
+    # COBOT_PICK_OFFSETS_PATH is also honored.
+    pick_offsets_path: ""
 
     # ROS interfaces
     perception_service_name: "/perception/detect_once"

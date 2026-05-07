@@ -31,6 +31,7 @@ from cobot_msgs.action import PickAndPlace
 from cobot_msgs.srv import DetectOnce
 
 from .order_provider import DBOrderProvider, FileOrderProvider, MockOrderProvider, OrderBook
+from .pick_offsets import load_pick_offsets
 from .retry_policy import FailureAction, RetryPolicy
 from .target_selector import WorkspaceBox, choose_target
 from .task_state import TaskState
@@ -75,13 +76,12 @@ class TaskManagerNode(Node):
         self.declare_parameter("pre_grasp_min_mm", 15.0)
         self.declare_parameter("pre_grasp_max_mm", 80.0)
 
-        # Per-class fine-tune offset added to grasp_xyz.z (mm). Negative =
-        # grip deeper (good for nuts that slip). Mirrors PER_CLASS_Z_OFFSET
-        # in scripts/pick_all.py so both code paths yield identical motion.
-        self.declare_parameter("per_class_z_offset_almond_mm", 0.0)
-        self.declare_parameter("per_class_z_offset_cashew_mm", 0.0)
-        self.declare_parameter("per_class_z_offset_pistachio_mm", 0.0)
-        self.declare_parameter("per_class_z_offset_walnut_mm", -1.0)
+        # Per-class fine-tune offset added to grasp_xyz.z (mm). Loaded from
+        # the shared cobot_config/config/pick_offsets.yaml so the /task/start
+        # path and any direct caller (scripts/pick_*.py) share one source of
+        # truth. Empty path -> resolver searches env var, ament-share, then
+        # source-tree fallback.
+        self.declare_parameter("pick_offsets_path", "")
 
         self.declare_parameter("perception_service_name", "/perception/detect_once")
         self.declare_parameter("pick_action_name", "/robot/pick_and_place")
@@ -158,12 +158,17 @@ class TaskManagerNode(Node):
         self._service_timeout_sec = float(self.get_parameter("service_timeout_sec").value)
         self._action_timeout_sec = float(self.get_parameter("action_timeout_sec").value)
         self._inter_pick_delay_sec = float(self.get_parameter("inter_pick_delay_sec").value)
-        self._per_class_z_offset_mm = {
-            "almond": float(self.get_parameter("per_class_z_offset_almond_mm").value),
-            "cashew": float(self.get_parameter("per_class_z_offset_cashew_mm").value),
-            "pistachio": float(self.get_parameter("per_class_z_offset_pistachio_mm").value),
-            "walnut": float(self.get_parameter("per_class_z_offset_walnut_mm").value),
-        }
+        explicit_offsets_path = (
+            str(self.get_parameter("pick_offsets_path").value).strip() or None
+        )
+        self._per_class_z_offset_mm = load_pick_offsets(explicit_offsets_path)
+        self.get_logger().info(
+            "Per-class z offsets (mm): "
+            + ", ".join(
+                f"{k}={v:+.2f}"
+                for k, v in sorted(self._per_class_z_offset_mm.items())
+            )
+        )
 
         self._retry = RetryPolicy(
             max_detect_misses=int(self.get_parameter("max_detect_misses").value),
@@ -291,11 +296,18 @@ class TaskManagerNode(Node):
             pre_grasp_width_mm = candidate.short_axis_mm + self._pre_grasp_margin_mm
             pre_grasp_width_mm = max(self._pre_grasp_min_mm, min(self._pre_grasp_max_mm, pre_grasp_width_mm))
 
+        z_offset_mm = self._per_class_z_offset_mm.get(target_class, 0.0)
+        grasp_z = float(candidate.base_xyz.z) + z_offset_mm
+        self.get_logger().info(
+            f"pick goal: nut_type={target_class} base_z={candidate.base_xyz.z:.1f} "
+            f"z_offset={z_offset_mm:+.2f} -> grasp_z={grasp_z:.1f}"
+        )
+
         goal = PickAndPlace.Goal()
         goal.target_class = target_class
         goal.grasp_xyz.x = float(candidate.base_xyz.x)
         goal.grasp_xyz.y = float(candidate.base_xyz.y)
-        goal.grasp_xyz.z = float(candidate.base_xyz.z) + self._per_class_z_offset_mm.get(target_class, 0.0)
+        goal.grasp_xyz.z = grasp_z
         goal.grasp_yaw = float(candidate.grasp_yaw)
         goal.pre_grasp_width_mm = float(pre_grasp_width_mm)
         goal.return_xyz.x = float(return_xyz[0])
