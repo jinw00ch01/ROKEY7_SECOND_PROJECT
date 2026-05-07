@@ -550,7 +550,7 @@ ELEVENLABS_API_KEY=... (TTS, optional, spd-say fallback 있음)
 FIREBASE_SERVICE_ACCOUNT=/path/to/json (Firebase 쓸거면 필수)
 ```
 
-배포 시 이 환경변수들 launch 파일 또는 .env에 셋업 필요.
+배포 시 이 환경변수들은 launch 환경 또는 `COBOT_VOICE_ENV_PATH=/absolute/path/to/cobot_voice.env`로 지정한 외부 env 파일에 설정한다.
 
 ### 10-4. 견과류 위치 z-override
 

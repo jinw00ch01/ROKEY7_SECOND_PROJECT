@@ -16,19 +16,16 @@ def get_package_path():
         return Path(__file__).resolve().parents[1]
 
 
+def get_source_env_path():
+    return Path(__file__).resolve().parents[1] / "resource" / ".env"
+
+
 def get_env_path():
     override_path = os.getenv("COBOT_VOICE_ENV_PATH")
     if override_path:
         return Path(override_path).expanduser()
 
-    package_path = get_package_path()
-    installed_env_path = package_path / "resource" / ".env"
-    for parent in package_path.parents:
-        source_env_path = parent / "cobot_voice" / "resource" / ".env"
-        if source_env_path.exists() and source_env_path != installed_env_path:
-            return source_env_path
-
-    return installed_env_path
+    return get_source_env_path()
 
 
 def load_package_env():

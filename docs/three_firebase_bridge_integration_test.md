@@ -120,8 +120,8 @@ python3 scripts/publish_robot_session_scenarios.py --delay 2
 
 필요 환경:
 
-- `cobot_voice/resource/.env`
-- `.env` 안의 `FIREBASE_SERVICE_ACCOUNT=/absolute/path/to/serviceAccount.json`
+- `COBOT_VOICE_ENV_PATH=/absolute/path/to/cobot_voice.env`
+- env 파일 안의 `FIREBASE_SERVICE_ACCOUNT=/absolute/path/to/serviceAccount.json`
 - Firestore 쓰기 권한
 
 ## 주요 코드 위치
