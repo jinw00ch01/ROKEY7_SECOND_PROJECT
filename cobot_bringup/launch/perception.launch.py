@@ -15,37 +15,47 @@ Launch args:
   config_perception         : path to cobot_perception yaml
 """
 
-import os
-
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description() -> LaunchDescription:
-    od_share = get_package_share_directory("cobot_object_detection")
-    perc_share = get_package_share_directory("cobot_perception")
-
     args = [
         DeclareLaunchArgument("enable_realsense", default_value="true"),
         DeclareLaunchArgument(
             "config_object_detection",
-            default_value=os.path.join(od_share, "config", "object_detection.yaml"),
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("cobot_object_detection"),
+                    "config",
+                    "object_detection.yaml",
+                ]
+            ),
         ),
         DeclareLaunchArgument(
             "config_perception",
-            default_value=os.path.join(perc_share, "config", "perception.yaml"),
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("cobot_perception"),
+                    "config",
+                    "perception.yaml",
+                ]
+            ),
         ),
     ]
 
-    realsense_share = get_package_share_directory("realsense2_camera")
     realsense = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(realsense_share, "launch", "rs_launch.py")
+            PathJoinSubstitution([
+                FindPackageShare("realsense2_camera"),
+                "launch",
+                "rs_launch.py",
+            ])
         ),
         # Profiles + flags chosen to match the bootcamp course command:
         #   ros2 launch realsense2_camera rs_align_depth_launch.py

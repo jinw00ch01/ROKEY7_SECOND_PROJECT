@@ -17,21 +17,16 @@ Launch args:
                               default is mock-safe robot_control.yaml
 """
 
-import os
-
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description() -> LaunchDescription:
-    rc_share = get_package_share_directory("cobot_robot_control")
-    dsr_share = get_package_share_directory("dsr_bringup2")
-
     args = [
         DeclareLaunchArgument("enable_dsr_bringup", default_value="false"),
         DeclareLaunchArgument("dsr_mode", default_value="virtual"),
@@ -41,13 +36,23 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("dsr_namespace", default_value="dsr01"),
         DeclareLaunchArgument(
             "config_robot_control",
-            default_value=os.path.join(rc_share, "config", "robot_control.yaml"),
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("cobot_robot_control"),
+                    "config",
+                    "robot_control.yaml",
+                ]
+            ),
         ),
     ]
 
     dsr_bringup = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(dsr_share, "launch", "dsr_bringup2_rviz.launch.py")
+            PathJoinSubstitution([
+                FindPackageShare("dsr_bringup2"),
+                "launch",
+                "dsr_bringup2_rviz.launch.py",
+            ])
         ),
         launch_arguments={
             "name": LaunchConfiguration("dsr_namespace"),

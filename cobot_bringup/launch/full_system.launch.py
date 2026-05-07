@@ -14,18 +14,14 @@ All toggles flow down to the sub-launches via launch_arguments. Examples:
   #   cobot_perception:    tcp_source=service (once implemented)
 """
 
-import os
-
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description() -> LaunchDescription:
-    bringup_share = get_package_share_directory("cobot_bringup")
-
     pass_args = [
         # perception
         "enable_realsense",
@@ -67,30 +63,42 @@ def generate_launch_description() -> LaunchDescription:
         ),
         DeclareLaunchArgument(
             "config_object_detection",
-            default_value=os.path.join(
-                get_package_share_directory("cobot_object_detection"),
-                "config", "object_detection.yaml",
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("cobot_object_detection"),
+                    "config",
+                    "object_detection.yaml",
+                ]
             ),
         ),
         DeclareLaunchArgument(
             "config_perception",
-            default_value=os.path.join(
-                get_package_share_directory("cobot_perception"),
-                "config", "perception.yaml",
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("cobot_perception"),
+                    "config",
+                    "perception.yaml",
+                ]
             ),
         ),
         DeclareLaunchArgument(
             "config_robot_control",
-            default_value=os.path.join(
-                get_package_share_directory("cobot_robot_control"),
-                "config", "robot_control.yaml",
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("cobot_robot_control"),
+                    "config",
+                    "robot_control.yaml",
+                ]
             ),
         ),
         DeclareLaunchArgument(
             "config_task_manager",
-            default_value=os.path.join(
-                get_package_share_directory("cobot_task_manager"),
-                "config", "task_manager.yaml",
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("cobot_task_manager"),
+                    "config",
+                    "task_manager.yaml",
+                ]
             ),
         ),
     ]
@@ -100,7 +108,9 @@ def generate_launch_description() -> LaunchDescription:
 
     perception = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(bringup_share, "launch", "perception.launch.py")
+            PathJoinSubstitution(
+                [FindPackageShare("cobot_bringup"), "launch", "perception.launch.py"]
+            )
         ),
         launch_arguments=[
             forward("enable_realsense"),
@@ -111,7 +121,9 @@ def generate_launch_description() -> LaunchDescription:
 
     robot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(bringup_share, "launch", "robot.launch.py")
+            PathJoinSubstitution(
+                [FindPackageShare("cobot_bringup"), "launch", "robot.launch.py"]
+            )
         ),
         launch_arguments=[
             forward("enable_dsr_bringup"),
@@ -126,7 +138,9 @@ def generate_launch_description() -> LaunchDescription:
 
     host = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(bringup_share, "launch", "host_system.launch.py")
+            PathJoinSubstitution(
+                [FindPackageShare("cobot_bringup"), "launch", "host_system.launch.py"]
+            )
         ),
         launch_arguments=[
             forward("config_task_manager"),
