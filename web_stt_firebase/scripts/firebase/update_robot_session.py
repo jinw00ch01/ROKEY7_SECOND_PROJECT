@@ -27,12 +27,12 @@ def init_firestore():
     load_dotenv(ENV_PATH)
     service_account_path = os.getenv("FIREBASE_SERVICE_ACCOUNT")
 
-    if not service_account_path:
-        raise RuntimeError(f"FIREBASE_SERVICE_ACCOUNT is not set in {ENV_PATH}")
-
     if not firebase_admin._apps:
-        cred = credentials.Certificate(service_account_path)
-        firebase_admin.initialize_app(cred)
+        if service_account_path:
+            cred = credentials.Certificate(service_account_path)
+            firebase_admin.initialize_app(cred)
+        else:
+            firebase_admin.initialize_app()
 
     return firestore.client()
 
