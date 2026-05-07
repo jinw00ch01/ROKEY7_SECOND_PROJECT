@@ -1,94 +1,95 @@
-# ROS2 Node Architecture
+# ROS2 노드 아키텍처
 
-This document describes how the running ROS 2 graph is shaped: which
-nodes exist, what they publish/subscribe, the services and actions they
-expose, the parameters that govern their behavior, and the runtime flow
-that ties them together.
+이 문서는 실행 중인 ROS 2 그래프의 형태를 설명한다. 어떤 노드들이
+존재하는지, 무엇을 publish/subscribe 하는지, 노출하는 서비스와
+액션, 동작을 좌우하는 파라미터, 그리고 이들을 묶는 런타임 흐름을
+다룬다.
 
-## Index
+## 목차
 
-1. Node Overview Table
-2. Main Execution Graph
-3. ROS Interfaces (topics / services / actions)
-4. Task Manager State Machine
-5. Pick-and-Place Sequence
-6. Conveyor Trigger Logic
-7. Configuration and Parameters
-8. Debugging Topics and Commands
+1. 노드 개요 표
+2. 메인 실행 그래프
+3. ROS 인터페이스 (토픽 / 서비스 / 액션)
+4. Task Manager 상태 머신
+5. Pick-and-Place 시퀀스
+6. 컨베이어 트리거 로직
+7. 설정 및 파라미터
+8. 디버깅 토픽 및 명령어
 
-## Document set
+## 문서 구성
 
-- `docs/01_system_architecture.md` — system-level design and rationale.
-- `docs/02_ros_node_architecture.md` — **this file**.
-- `docs/03_run_manual.md` — operator-facing run order.
-- `docs/04_validation_checklist.md` — pre-flight test checklist.
-- `docs/cleanup_deletion_proposal.md` and
-  `_archive_cleanup/<YYYYMMDD>/cleanup_manifest.md` — meta/cleanup
-  records. The `_archive_cleanup/` directory is **not active code** and
-  is excluded from the runtime graph described in this file.
+- `docs/01_system_architecture.md` — 시스템 수준 설계 및 근거.
+- `docs/02_ros_node_architecture.md` — **이 파일**.
+- `docs/03_run_manual.md` — 운영자용 실행 절차.
+- `docs/04_validation_checklist.md` — 사전 점검 체크리스트.
+- `docs/cleanup_deletion_proposal.md` 및
+  `_archive_cleanup/<YYYYMMDD>/cleanup_manifest.md` — 메타/정리
+  기록. `_archive_cleanup/` 디렉토리는 **실제 코드가 아니며** 이
+  파일에서 설명하는 런타임 그래프에서는 제외된다.
 
-ROS distribution: ROS 2 Humble. All Python nodes in this repo are
-`ament_python`; `cobot_msgs` and `cobot_bringup` are `ament_cmake`.
+ROS 배포판: ROS 2 Humble. 이 저장소의 모든 Python 노드는
+`ament_python`이며, `cobot_msgs`와 `cobot_bringup`은 `ament_cmake`이다.
 
-> **Naming convention used throughout this document.** The Doosan-side
-> nodes live in the `dsr01` namespace, so their **node names** are
-> `/dsr01/robot_control_node`, `/dsr01/robot_action_helper`, and
-> `/dsr01/robot_pose_helper`. **Service and action names are absolute**
-> in this repo — they are declared in `robot_control.yaml` with a
-> leading `/` (e.g. `/robot/pick_and_place`, `/robot/home`,
-> `/robot/stop`, `/robot/get_current_pose`) and are therefore **not**
-> prefixed with `/dsr01/` at runtime. The task manager calls them with
-> the same absolute names from `task_manager.yaml`.
+> **이 문서 전반에서 사용하는 명명 규칙.** Doosan 측 노드들은
+> `dsr01` 네임스페이스에 위치하므로 그 **노드 이름**은
+> `/dsr01/robot_control_node`, `/dsr01/robot_action_helper`,
+> `/dsr01/robot_pose_helper`이다. **서비스 및 액션 이름은 이
+> 저장소에서 절대 경로로 사용된다** — `robot_control.yaml`에 선두
+> `/`를 붙여 선언되며 (예: `/robot/pick_and_place`, `/robot/home`,
+> `/robot/stop`, `/robot/get_current_pose`), 따라서 런타임에서
+> `/dsr01/`이 **접두되지 않는다**. task manager는 `task_manager.yaml`
+> 에서 동일한 절대 이름으로 호출한다.
 
 ---
 
-## 1. Node Overview Table
+## 1. 노드 개요 표
 
-The table covers the production runtime nodes brought up by
-`cobot_bringup/launch/full_system.launch.py` plus the conveyor (launched
-separately) and the upstream RealSense / Doosan packages.
+이 표는 `cobot_bringup/launch/full_system.launch.py`로 띄우는
+프로덕션 런타임 노드와, 별도로 실행되는 컨베이어, 그리고 상위
+RealSense / Doosan 패키지를 다룬다.
 
-> The **Actions** column also lists notable external interfaces a node
-> calls as a *client* (action goals it sends, and the small set of
-> external service clients worth knowing about — e.g. the Doosan
-> `/dsr01/system/get_current_pose` passthrough). Keeping them on the
-> same row lets you read each node end-to-end without cross-referencing
-> the §3 interface tables. Anything tagged *(server)* is hosted by the
-> node; anything tagged *(client)* is consumed by it.
+> **Actions** 열에는 노드가 *클라이언트*로 호출하는 주요 외부
+> 인터페이스(전송하는 액션 goal과 알아둘 가치가 있는 소수의 외부
+> 서비스 클라이언트 — 예: Doosan `/dsr01/system/get_current_pose`
+> passthrough)도 함께 나열한다. 이렇게 같은 행에 두면 §3 인터페이스
+> 표를 교차 참조하지 않고 각 노드를 끝까지 읽어낼 수 있다.
+> *(server)* 표시는 노드가 호스트하는 것이고, *(client)* 표시는 노드가
+> 소비하는 것이다.
 
-| Node | Package | Key file | Role | Publishes | Subscribes | Services (server) | Actions | Parameters |
+| Node | Package | Key file | 역할 | Publishes | Subscribes | Services (server) | Actions | Parameters |
 |---|---|---|---|---|---|---|---|---|
-| `task_manager_node` | `cobot_task_manager` | `cobot_task_manager/task_manager_node.py` | Order-driven orchestrator: detect → select → pick loop | `/task/status` (`std_msgs/String`), `/task/result` (`std_msgs/String`) | — | `/task/start` (`std_srvs/Trigger`) | `/robot/pick_and_place` *(client)*, `/perception/detect_once` *(client)*, `/robot/home` *(client)*, `/db/get_nut_order` *(client when `order_source=db`)* | `order_source` (`mock`/`db`/`file`), `mock_order_*`, `db_service_name`, `file_order_path`, `file_order_require_success`, `class_priority`, `conf_gate`, `min_depth_mm`, `workspace_*_mm`, `return_xyz_mm`, `return_zyz_deg`, `pre_grasp_margin_mm`/`min_mm`/`max_mm`, `pick_offsets_path`, `perception_service_name`, `pick_action_name`, `home_service_name`, `max_detect_misses`, `max_grasp_failures`, `service_timeout_sec`, `action_timeout_sec`, `inter_pick_delay_sec`, `autostart` |
-| `object_detection_node` | `cobot_object_detection` | `cobot_object_detection/object_detection_node.py` | YOLOv8-OBB inference on the RealSense color stream; multi-frame fusion | `/detection/objects` (`cobot_msgs/DetectedObjectArray`) | `/camera/camera/color/image_raw` (`sensor_msgs/Image`, sensor QoS) | — | — | `model_path`, `class_names`, `imgsz`, `conf_threshold`, `iou_threshold`, `device`, `multi_frame_window_sec`, `cluster_distance_threshold_px`, `color_topic`, `output_topic`, `publish_when_empty` |
-| `perception_transform_node` | `cobot_perception` | `cobot_perception/perception_transform_node.py` | Depth lookup inside OBB, hand-eye + pinhole lift, base-frame xyz + grasp yaw | — | `/detection/objects`, `/camera/camera/aligned_depth_to_color/image_raw`, `/camera/camera/color/camera_info` | `/perception/detect_once` (`cobot_msgs/srv/DetectOnce`) | `/robot/get_current_pose` *(client when `tcp_source=service`)* | `gripper2camera_npy`, `min_depth_camera_mm`, `max_depth_camera_mm`, `depth_offset_mm`, `min_depth_base_mm`, `tcp_source` (`fixed`/`service`), `fixed_tcp_xyz_mm`, `fixed_tcp_zyz_deg`, `tcp_service_name`, `tcp_service_timeout_sec`, `detection_topic`, `depth_topic`, `camera_info_topic`, `service_name` |
-| `mock_perception_node` | `cobot_perception` | `cobot_perception/mock_perception_node.py` | Hardware-free `/perception/detect_once` server (8-nut hardcoded scene) | — | — | `/perception/detect_once` | — | — |
-| `robot_control_node` | `cobot_robot_control` | `cobot_robot_control/robot_control_node.py` | Pick-and-place action server, motion + gripper façade, place-ready beacon | `/conveyor/place_ready` (`std_msgs/Bool`, 10 Hz) | — | `/robot/home`, `/robot/stop` (both `std_srvs/Trigger`), `/robot/get_current_pose` (`cobot_msgs/srv/GetCurrentPose`) | `/robot/pick_and_place` *(server)*, `/dsr01/system/get_current_pose` *(client)* | `robot_id`, `robot_model`, `motion_backend` (`real`/`mock`), `gripper_backend` (`modbus`/`mock`/`tool_dio`), `gripper_ip`, `gripper_port`, `gripper_force_x10`, `gripper_open_width_x10`, `home_joints_deg`, `approach_offset_z_mm`, `velocity`/`acceleration`/`*_slow`, `grip_settle_timeout_sec`, `grasp_local_offset_xy_mm`, `action_name`, `home_service_name`, `stop_service_name`, `pose_service_name`, `doosan_pose_service`, `pose_passthrough_timeout_sec`, `place_ready_topic`, `place_y_margin_mm`, `place_ready_publish_period_sec`, `workspace_enabled`, `workspace_*_mm` |
-| *Gripper control* | `cobot_robot_control` | `cobot_robot_control/gripper_controller.py` | **Not a ROS node** — Python `Protocol` with three backends (`MockGripperBackend`, Modbus RG2, `tool_dio` stub). Used in-process by `robot_control_node`. | — | — | — | — | — |
-| `firebase_status_bridge` | `cobot_voice` | `cobot_voice/firebase_status_bridge.py` | Mirror robot pipeline progress to Firestore `robot_state` field | — | `/task/status`, `/task/result`, `/conveyor/place_ready` | — | — | `status_topic`, `result_topic`, `place_ready_topic` |
-| `voice_processing_node` | `cobot_voice` | `cobot_voice/voice_processing_node.py` | **Legacy** wake-word + STT publisher. Not consumed by any in-tree node; production voice path is `voice_to_robot.py` (in-process). | `/voice/text` (`std_msgs/String`), `/voice/status` (`std_msgs/String`) | (mic capture, not a ROS topic) | — | — | (no ROS parameters) |
-| `web_voice_bridge_server` | `cobot_voice` | `cobot_voice/web_voice_bridge_server.py` | **Not a ROS node** — local `ThreadingHTTPServer` on `127.0.0.1:8765` driving the voice flow for the web UI. | — | — | — | — | CLI: `--host`, `--port` |
-| `conveyor_serial_node` | `conveyor_controller` | `conveyor_controller/conveyor_serial_node.py` | Forward `/conveyor_cmd` strings to Arduino UNO; turn `/conveyor/place_ready` False→True edges into one timed advance | — | `/conveyor_cmd` (`std_msgs/String`), `/conveyor/place_ready` (`std_msgs/Bool`) | — | — | `port`, `baudrate`, `serial_timeout`, `arduino_reset_delay`, `command_topic`, `place_ready_topic`, `auto_command`, `auto_run_duration_sec` |
-| `realsense2_camera_node` (`/camera/camera`) | `realsense2_camera` (upstream) | `rs_launch.py` | RealSense color + aligned depth + camera_info | `/camera/camera/color/image_raw`, `/camera/camera/aligned_depth_to_color/image_raw`, `/camera/camera/color/camera_info`, `/camera/camera/depth/color/points` | — | — | — | `enable_color`, `enable_depth`, `rgb_camera.color_profile` (`1280x720x30`), `depth_module.depth_profile` (`848x480x30`), `align_depth.enable`, `enable_rgbd`, `pointcloud.enable`, `initial_reset` |
-| `dsr_bringup2` stack (`/dsr01/...`) | `dsr_bringup2` (upstream) | `dsr_bringup2_rviz.launch.py` | Doosan controller bring-up: `ros2_control_node`, `dsr_controller2`, `joint_state_broadcaster`, system services (incl. `/dsr01/system/get_current_pose`) | `/dsr01/joint_states`, controller topics | — | `/dsr01/system/get_current_pose` (and many others) | — | `name=dsr01`, `host`, `port`, `mode` (`real`/`virtual`), `model` (`m0609`), `gui=false` |
+| `task_manager_node` | `cobot_task_manager` | `cobot_task_manager/task_manager_node.py` | 주문 기반 오케스트레이터: detect → select → pick 루프 | `/task/status` (`std_msgs/String`), `/task/result` (`std_msgs/String`) | — | `/task/start` (`std_srvs/Trigger`) | `/robot/pick_and_place` *(client)*, `/perception/detect_once` *(client)*, `/robot/home` *(client)*, `/db/get_nut_order` *(client when `order_source=db`)* | `order_source` (`mock`/`db`/`file`), `mock_order_*`, `db_service_name`, `file_order_path`, `file_order_require_success`, `class_priority`, `conf_gate`, `min_depth_mm`, `workspace_*_mm`, `return_xyz_mm`, `return_zyz_deg`, `pre_grasp_margin_mm`/`min_mm`/`max_mm`, `pick_offsets_path`, `perception_service_name`, `pick_action_name`, `home_service_name`, `max_detect_misses`, `max_grasp_failures`, `service_timeout_sec`, `action_timeout_sec`, `inter_pick_delay_sec`, `autostart` |
+| `object_detection_node` | `cobot_object_detection` | `cobot_object_detection/object_detection_node.py` | RealSense 컬러 스트림 위에서 YOLOv8-OBB 추론, 멀티 프레임 융합 | `/detection/objects` (`cobot_msgs/DetectedObjectArray`) | `/camera/camera/color/image_raw` (`sensor_msgs/Image`, sensor QoS) | — | — | `model_path`, `class_names`, `imgsz`, `conf_threshold`, `iou_threshold`, `device`, `multi_frame_window_sec`, `cluster_distance_threshold_px`, `color_topic`, `output_topic`, `publish_when_empty` |
+| `perception_transform_node` | `cobot_perception` | `cobot_perception/perception_transform_node.py` | OBB 내부의 깊이 조회, hand-eye + 핀홀 lift, 베이스 프레임 xyz + grasp yaw | — | `/detection/objects`, `/camera/camera/aligned_depth_to_color/image_raw`, `/camera/camera/color/camera_info` | `/perception/detect_once` (`cobot_msgs/srv/DetectOnce`) | `/robot/get_current_pose` *(client when `tcp_source=service`)* | `gripper2camera_npy`, `min_depth_camera_mm`, `max_depth_camera_mm`, `depth_offset_mm`, `min_depth_base_mm`, `tcp_source` (`fixed`/`service`), `fixed_tcp_xyz_mm`, `fixed_tcp_zyz_deg`, `tcp_service_name`, `tcp_service_timeout_sec`, `detection_topic`, `depth_topic`, `camera_info_topic`, `service_name` |
+| `mock_perception_node` | `cobot_perception` | `cobot_perception/mock_perception_node.py` | 하드웨어 없는 `/perception/detect_once` 서버 (8개 너트 하드코딩 씬) | — | — | `/perception/detect_once` | — | — |
+| `robot_control_node` | `cobot_robot_control` | `cobot_robot_control/robot_control_node.py` | Pick-and-place 액션 서버, 모션 + 그리퍼 파사드, place-ready 비콘 | `/conveyor/place_ready` (`std_msgs/Bool`, 10 Hz) | — | `/robot/home`, `/robot/stop` (both `std_srvs/Trigger`), `/robot/get_current_pose` (`cobot_msgs/srv/GetCurrentPose`) | `/robot/pick_and_place` *(server)*, `/dsr01/system/get_current_pose` *(client)* | `robot_id`, `robot_model`, `motion_backend` (`real`/`mock`), `gripper_backend` (`modbus`/`mock`/`tool_dio`), `gripper_ip`, `gripper_port`, `gripper_force_x10`, `gripper_open_width_x10`, `home_joints_deg`, `approach_offset_z_mm`, `velocity`/`acceleration`/`*_slow`, `grip_settle_timeout_sec`, `grasp_local_offset_xy_mm`, `action_name`, `home_service_name`, `stop_service_name`, `pose_service_name`, `doosan_pose_service`, `pose_passthrough_timeout_sec`, `place_ready_topic`, `place_y_margin_mm`, `place_ready_publish_period_sec`, `workspace_enabled`, `workspace_*_mm` |
+| *그리퍼 제어* | `cobot_robot_control` | `cobot_robot_control/gripper_controller.py` | **ROS 노드가 아님** — 세 개의 백엔드(`MockGripperBackend`, Modbus RG2, `tool_dio` 스텁)를 가진 Python `Protocol`. `robot_control_node` 내에서 in-process로 사용된다. | — | — | — | — | — |
+| `firebase_status_bridge` | `cobot_voice` | `cobot_voice/firebase_status_bridge.py` | 로봇 파이프라인 진행 상태를 Firestore `robot_state` 필드로 미러링 | — | `/task/status`, `/task/result`, `/conveyor/place_ready` | — | — | `status_topic`, `result_topic`, `place_ready_topic` |
+| `voice_processing_node` | `cobot_voice` | `cobot_voice/voice_processing_node.py` | **legacy** wake word + STT 게시자. in-tree 노드에서 소비하지 않으며, 프로덕션 음성 경로는 `voice_to_robot.py` (in-process) 이다. | `/voice/text` (`std_msgs/String`), `/voice/status` (`std_msgs/String`) | (마이크 캡처, ROS 토픽 아님) | — | — | (ROS 파라미터 없음) |
+| `web_voice_bridge_server` | `cobot_voice` | `cobot_voice/web_voice_bridge_server.py` | **ROS 노드가 아님** — 웹 UI용 음성 흐름을 구동하는 `127.0.0.1:8765`의 로컬 `ThreadingHTTPServer`. | — | — | — | — | CLI: `--host`, `--port` |
+| `conveyor_serial_node` | `conveyor_controller` | `conveyor_controller/conveyor_serial_node.py` | `/conveyor_cmd` 문자열을 Arduino UNO로 전달; `/conveyor/place_ready` False→True 에지를 한 번의 시간 기반 진행으로 전환 | — | `/conveyor_cmd` (`std_msgs/String`), `/conveyor/place_ready` (`std_msgs/Bool`) | — | — | `port`, `baudrate`, `serial_timeout`, `arduino_reset_delay`, `command_topic`, `place_ready_topic`, `auto_command`, `auto_run_duration_sec` |
+| `realsense2_camera_node` (`/camera/camera`) | `realsense2_camera` (upstream) | `rs_launch.py` | RealSense 컬러 + 정렬된 깊이 + camera_info | `/camera/camera/color/image_raw`, `/camera/camera/aligned_depth_to_color/image_raw`, `/camera/camera/color/camera_info`, `/camera/camera/depth/color/points` | — | — | — | `enable_color`, `enable_depth`, `rgb_camera.color_profile` (`1280x720x30`), `depth_module.depth_profile` (`848x480x30`), `align_depth.enable`, `enable_rgbd`, `pointcloud.enable`, `initial_reset` |
+| `dsr_bringup2` 스택 (`/dsr01/...`) | `dsr_bringup2` (upstream) | `dsr_bringup2_rviz.launch.py` | Doosan 컨트롤러 bring-up: `ros2_control_node`, `dsr_controller2`, `joint_state_broadcaster`, 시스템 서비스 (`/dsr01/system/get_current_pose` 포함) | `/dsr01/joint_states`, 컨트롤러 토픽 | — | `/dsr01/system/get_current_pose` (그 외 다수) | — | `name=dsr01`, `host`, `port`, `mode` (`real`/`virtual`), `model` (`m0609`), `gui=false` |
 
-In-process helper nodes spawned **inside** `robot_control_node` (visible
-to `ros2 node list` as ordinary nodes):
+`robot_control_node` **내부**에서 spawn 되는 in-process helper
+노드들 (`ros2 node list`에 일반 노드처럼 보인다):
 
-- `robot_action_helper` — owns the `/robot/pick_and_place` action server,
-  `/robot/home`, `/robot/stop` services. 4-thread executor.
-- `robot_pose_helper` — owns `/robot/get_current_pose` and the
-  `/dsr01/system/get_current_pose` client. 2-thread executor.
+- `robot_action_helper` — `/robot/pick_and_place` 액션 서버,
+  `/robot/home`, `/robot/stop` 서비스를 소유한다. 4-스레드 executor.
+- `robot_pose_helper` — `/robot/get_current_pose`와
+  `/dsr01/system/get_current_pose` 클라이언트를 소유한다. 2-스레드
+  executor.
 
-These helpers exist so DSR_ROBOT2 traffic on the main node's executor
-cannot starve action acceptance or pose-service responses (see
-`robot_control_node.py` lines 175–260 for the full rationale).
+이 helper들은 메인 노드의 executor에서 발생하는 DSR_ROBOT2 트래픽이
+액션 수락 또는 pose 서비스 응답을 굶기지 못하도록 존재한다 (전체
+근거는 `robot_control_node.py` 175–260 줄 참고).
 
-Empty stubs (no implementation, not launched anywhere): `cobot_safety`
+빈 스텁 (구현 없음, 어디에서도 launch 되지 않음): `cobot_safety`
 (`safety_manager_node`), `cobot_policy` (`policy_selector_node`).
 
 ---
 
-## 2. Main Execution Graph
+## 2. 메인 실행 그래프
 
 ```
 voice_to_robot.py    or    web UI POST /voice-audio/start
@@ -130,56 +131,57 @@ voice_to_robot.py    or    web UI POST /voice-audio/start
                                                                           (robot_state)
 ```
 
-For the real-hardware path, `robot_control_node` lives in the `dsr01`
-namespace, talks to `dsr_bringup2` via `/dsr01/system/get_current_pose`
-and the DSR_ROBOT2 Python module, and drives the OnRobot RG2 over Modbus
-TCP at `192.168.1.1:502` (no ROS interface for the gripper itself).
+실제 하드웨어 경로에서 `robot_control_node`는 `dsr01` 네임스페이스에
+위치하며, `/dsr01/system/get_current_pose`와 DSR_ROBOT2 Python
+모듈을 통해 `dsr_bringup2`와 통신하고, OnRobot RG2를 Modbus TCP
+`192.168.1.1:502`로 구동한다 (그리퍼 자체에는 ROS 인터페이스가 없다).
 
 ---
 
-## 3. ROS Interfaces
+## 3. ROS 인터페이스
 
-### 3.1 Topics
+### 3.1 토픽
 
-| Topic | Type | Producer | Consumer(s) | Payload meaning | When used |
+| Topic | Type | Producer | Consumer(s) | payload 의미 | 사용 시점 |
 |---|---|---|---|---|---|
-| `/camera/camera/color/image_raw` | `sensor_msgs/Image` | `realsense2_camera_node` | `object_detection_node`, `scripts/yolo_rqt_view.py` | RGB color frame, 1280×720@30, sensor QoS (best-effort, depth=2) | Continuous while RealSense is up |
-| `/camera/camera/aligned_depth_to_color/image_raw` | `sensor_msgs/Image` | `realsense2_camera_node` | `perception_transform_node` | Depth aligned to color (mm-scale uint16), 848×480@30 | Continuous; latched by `_on_depth` callback |
-| `/camera/camera/color/camera_info` | `sensor_msgs/CameraInfo` | `realsense2_camera_node` | `perception_transform_node` | Pinhole intrinsics (fx, fy, ppx, ppy from `K`) | Continuous; cached on first change |
-| `/detection/objects` | `cobot_msgs/DetectedObjectArray` | `object_detection_node` | `perception_transform_node` | Fused 2D OBBs (`class_name`, `confidence`, `cx/cy/width/height/theta`); `transform_valid=false` here | One message per processed color frame (gated by `_processing` flag) |
-| `/perception/detect_once` *(service — listed here for completeness)* | `cobot_msgs/srv/DetectOnce` | `perception_transform_node` | `task_manager_node`, `scripts/pick_*.py` | Latest detections lifted to base frame (`base_xyz` in mm, `grasp_yaw` rad, `short_axis_mm`, `long_axis_mm`, `transform_valid=true`) | Once per task-loop iteration |
-| `/conveyor/place_ready` | `std_msgs/Bool` | `robot_control_node` | `conveyor_serial_node`, `firebase_status_bridge` | TCP at place-y within `place_y_margin_mm` AND gripper open at place pose | 10 Hz baseline + edge transitions during `place`/`retreat` stages |
-| `/conveyor_cmd` | `std_msgs/String` | (operator / scripts) | `conveyor_serial_node` | Belt command: `F1`–`F100`, `R1`–`R100`, or `STOP` (uppercase, newline-terminated on serial) | Manual control / debugging |
-| `/task/status` | `std_msgs/String` | `task_manager_node` | `firebase_status_bridge` | `<state> [<info>]` — `init`, `detect`, `select_target <class>`, `pick_and_place <class>`, `done`, `aborted <reason>`, `safety_stop` | Every state transition in `_set_state` |
-| `/task/result` | `std_msgs/String` | `task_manager_node` | `firebase_status_bridge` | `success <info>` or `failure <reason>` (e.g., `home_failed`, `action_failure`, `safety_stop`, `failure_code=N`) | Once per task run, at terminal state |
-| `/voice/text` | `std_msgs/String` | `voice_processing_node` (legacy) | (none in-tree) | Whisper transcript | Legacy; not used by the production voice path |
-| `/voice/status` | `std_msgs/String` | `voice_processing_node` (legacy) | (none in-tree) | `idle`, `wake_detected`, `listening`, `transcribing`, `processing`, `error` | Legacy |
+| `/camera/camera/color/image_raw` | `sensor_msgs/Image` | `realsense2_camera_node` | `object_detection_node`, `scripts/yolo_rqt_view.py` | RGB 컬러 프레임, 1280×720@30, sensor QoS (best-effort, depth=2) | RealSense가 켜져 있는 동안 지속 |
+| `/camera/camera/aligned_depth_to_color/image_raw` | `sensor_msgs/Image` | `realsense2_camera_node` | `perception_transform_node` | 컬러에 정렬된 깊이 (mm 단위 uint16), 848×480@30 | 지속 발행; `_on_depth` 콜백에서 latch |
+| `/camera/camera/color/camera_info` | `sensor_msgs/CameraInfo` | `realsense2_camera_node` | `perception_transform_node` | 핀홀 내재 파라미터 (`K`로부터 fx, fy, ppx, ppy) | 지속; 첫 변경 시 캐시 |
+| `/detection/objects` | `cobot_msgs/DetectedObjectArray` | `object_detection_node` | `perception_transform_node` | 융합된 2D OBB (`class_name`, `confidence`, `cx/cy/width/height/theta`); 여기서는 `transform_valid=false` | 처리된 컬러 프레임마다 한 메시지 (`_processing` 플래그로 게이트) |
+| `/perception/detect_once` *(서비스 — 완전성을 위해 여기 나열)* | `cobot_msgs/srv/DetectOnce` | `perception_transform_node` | `task_manager_node`, `scripts/pick_*.py` | 베이스 프레임으로 lift된 최신 감지 (`base_xyz` mm, `grasp_yaw` rad, `short_axis_mm`, `long_axis_mm`, `transform_valid=true`) | task 루프 반복마다 1회 |
+| `/conveyor/place_ready` | `std_msgs/Bool` | `robot_control_node` | `conveyor_serial_node`, `firebase_status_bridge` | place pose에서 그리퍼가 열려 있고 TCP가 place-y의 `place_y_margin_mm` 이내 | 10 Hz 기본 + `place`/`retreat` 단계 동안의 에지 전환 |
+| `/conveyor_cmd` | `std_msgs/String` | (운영자 / 스크립트) | `conveyor_serial_node` | 벨트 명령: `F1`–`F100`, `R1`–`R100`, 또는 `STOP` (대문자, 시리얼에서는 newline 종결) | 수동 제어 / 디버깅 |
+| `/task/status` | `std_msgs/String` | `task_manager_node` | `firebase_status_bridge` | `<state> [<info>]` — `init`, `detect`, `select_target <class>`, `pick_and_place <class>`, `done`, `aborted <reason>`, `safety_stop` | `_set_state`의 모든 상태 전환마다 |
+| `/task/result` | `std_msgs/String` | `task_manager_node` | `firebase_status_bridge` | `success <info>` 또는 `failure <reason>` (예: `home_failed`, `action_failure`, `safety_stop`, `failure_code=N`) | task 실행당 1회, 종단 상태에서 |
+| `/voice/text` | `std_msgs/String` | `voice_processing_node` (legacy) | (in-tree에 없음) | Whisper transcript | legacy; 프로덕션 음성 경로에서는 사용하지 않음 |
+| `/voice/status` | `std_msgs/String` | `voice_processing_node` (legacy) | (in-tree에 없음) | `idle`, `wake_detected`, `listening`, `transcribing`, `processing`, `error` | legacy |
 
-### 3.2 Services
+### 3.2 서비스
 
-| Service | Type | Server | Client(s) | Payload meaning | When used |
+| Service | Type | Server | Client(s) | payload 의미 | 사용 시점 |
 |---|---|---|---|---|---|
-| `/task/start` | `std_srvs/Trigger` | `task_manager_node` | `voice_to_robot.py` (via `cobot_voice.task_manager_dispatcher` → `ros2 service call`), operator | Start the worker if it is not already running. `success=False` with message `"task already running"` if it is. | When `task_autostart:=false` and an external trigger fires |
-| `/perception/detect_once` | `cobot_msgs/srv/DetectOnce` | `perception_transform_node` (or `mock_perception_node`) | `task_manager_node`, `scripts/pick_one.py`, `scripts/pick_all.py` | One-shot detection cycle. Response carries `objects.objects[]` with base-frame xyz, grasp yaw, mm sizes; `success=True` only if depth + intrinsics + detection are all populated. | Once per pick attempt |
-| `/robot/home` | `std_srvs/Trigger` | `robot_control_node` (on `robot_action_helper`) | `task_manager_node` | Move the arm to `home_joints_deg` via `move_joint`. | Once at task start, before the loop |
-| `/robot/stop` | `std_srvs/Trigger` | `robot_control_node` (on `robot_action_helper`) | (operator) | Set the internal stop event, drop place_ready, open the gripper. | Manual stop. Pick action observes the event via `is_cancelled`. |
-| `/robot/get_current_pose` | `cobot_msgs/srv/GetCurrentPose` | `robot_control_node` (on `robot_pose_helper`) | `perception_transform_node` (when `tcp_source=service`), scripts | Return the current Doosan TCP — `xyz_mm` and `zyz_deg` (ZYZ Euler degrees). | Each `detect_once` call when `tcp_source=service` (the production default in `perception.yaml`) |
-| `/dsr01/system/get_current_pose` | `dsr_msgs2/srv/GetCurrentPose` | `dsr_bringup2` | `robot_control_node` (passthrough source) | Doosan native pose service (`space_type=1` → ROBOT_SPACE_TASK, returns posx). | Backend for `/robot/get_current_pose` |
-| `/db/get_nut_order` | `cobot_msgs/srv/GetNutOrder` | **(no server in this repo — Not Implemented)** | `task_manager_node` (when `order_source=db`) | Counts per nut class (`almond`, `cashew`, `pistachio`, `walnut`) with `success`/`message`. | Would be once per task run; today setting `order_source:=db` will time out. |
+| `/task/start` | `std_srvs/Trigger` | `task_manager_node` | `voice_to_robot.py` (`cobot_voice.task_manager_dispatcher` → `ros2 service call` 경유), 운영자 | 워커가 아직 실행 중이 아니라면 시작한다. 이미 실행 중이면 `success=False`와 메시지 `"task already running"`을 반환한다. | `task_autostart:=false`이고 외부 트리거가 발화될 때 |
+| `/perception/detect_once` | `cobot_msgs/srv/DetectOnce` | `perception_transform_node` (또는 `mock_perception_node`) | `task_manager_node`, `scripts/pick_one.py`, `scripts/pick_all.py` | 단발 감지 사이클. 응답에는 베이스 프레임 xyz, grasp yaw, mm 크기를 가진 `objects.objects[]`가 실린다; 깊이 + 내재 파라미터 + 감지가 모두 채워졌을 때만 `success=True`. | 픽 시도당 1회 |
+| `/robot/home` | `std_srvs/Trigger` | `robot_control_node` (`robot_action_helper`에서) | `task_manager_node` | `move_joint`로 팔을 `home_joints_deg`로 이동. | task 시작 시 루프 진입 전 1회 |
+| `/robot/stop` | `std_srvs/Trigger` | `robot_control_node` (`robot_action_helper`에서) | (운영자) | 내부 stop 이벤트 설정, place_ready 해제, 그리퍼 열기. | 수동 정지. 픽 액션은 `is_cancelled`로 이벤트를 관찰한다. |
+| `/robot/get_current_pose` | `cobot_msgs/srv/GetCurrentPose` | `robot_control_node` (`robot_pose_helper`에서) | `perception_transform_node` (`tcp_source=service`일 때), 스크립트 | 현재 Doosan TCP를 반환 — `xyz_mm`과 `zyz_deg` (ZYZ Euler 도). | `tcp_source=service`일 때 (`perception.yaml`의 프로덕션 기본값) 매 `detect_once` 호출 |
+| `/dsr01/system/get_current_pose` | `dsr_msgs2/srv/GetCurrentPose` | `dsr_bringup2` | `robot_control_node` (passthrough 소스) | Doosan 네이티브 pose 서비스 (`space_type=1` → ROBOT_SPACE_TASK, posx 반환). | `/robot/get_current_pose`의 백엔드 |
+| `/db/get_nut_order` | `cobot_msgs/srv/GetNutOrder` | **(이 저장소에 서버 없음 — 미구현)** | `task_manager_node` (`order_source=db`일 때) | 너트 클래스별 개수 (`almond`, `cashew`, `pistachio`, `walnut`)와 `success`/`message`. | task 실행당 1회로 의도되었지만, 현재 `order_source:=db`로 설정하면 타임아웃됨. |
 
-### 3.3 Actions
+### 3.3 액션
 
-| Action | Type | Server | Client(s) | Payload meaning | When used |
+| Action | Type | Server | Client(s) | payload 의미 | 사용 시점 |
 |---|---|---|---|---|---|
-| `/robot/pick_and_place` | `cobot_msgs/action/PickAndPlace` | `robot_control_node` (on `robot_action_helper`) | `task_manager_node`, `scripts/pick_one.py`, `scripts/pick_all.py` | Goal: `target_class`, `grasp_xyz` (mm), `grasp_yaw` (rad), `pre_grasp_width_mm` (≤0 disables pre-position), `return_xyz`, `return_zyz_deg`. Feedback: `stage` ∈ {`pre_grasp_width`, `approach`, `grasp`, `verify_grip`, `lift`, `transit`, `place`, `retreat`, `home`}. Result: `success`, `failure_code` ∈ {0 ok, 1 approach_fail, 2 grasp_not_detected, 3 motion_fail, 4 safety_stop, 5 workspace_violation}, `message`. | Once per nut in the order; the `_busy_lock` rejects concurrent goals |
+| `/robot/pick_and_place` | `cobot_msgs/action/PickAndPlace` | `robot_control_node` (`robot_action_helper`에서) | `task_manager_node`, `scripts/pick_one.py`, `scripts/pick_all.py` | Goal: `target_class`, `grasp_xyz` (mm), `grasp_yaw` (rad), `pre_grasp_width_mm` (≤0이면 사전 위치 비활성화), `return_xyz`, `return_zyz_deg`. Feedback: `stage` ∈ {`pre_grasp_width`, `approach`, `grasp`, `verify_grip`, `lift`, `transit`, `place`, `retreat`, `home`}. Result: `success`, `failure_code` ∈ {0 ok, 1 approach_fail, 2 grasp_not_detected, 3 motion_fail, 4 safety_stop, 5 workspace_violation}, `message`. | 주문의 너트마다 1회; `_busy_lock`이 동시 goal을 거부 |
 
 ---
 
-## 4. Task Manager State Machine
+## 4. Task Manager 상태 머신
 
-The actual states live in `cobot_task_manager/cobot_task_manager/task_state.py`
-as `TaskState` (a `str`-Enum). They are emitted on `/task/status` via
-`_set_state` in `task_manager_node.py`. The full set is:
+실제 상태들은 `cobot_task_manager/cobot_task_manager/task_state.py`에
+`TaskState` (`str`-Enum)로 존재한다. `task_manager_node.py`의
+`_set_state`를 통해 `/task/status`로 발행된다. 전체 집합은 다음과
+같다:
 
 ```
 IDLE              "idle"
@@ -192,22 +194,22 @@ ABORTED           "aborted"
 SAFETY_STOP       "safety_stop"
 ```
 
-There are **no separate `WAITING_FOR_TASK`, `PLACING`, `CONVEYOR_MOVING`,
-`TASK_DONE`, or `ERROR` states in the task manager**. The mapping to your
-proposed model is:
+**task manager에는 별도의 `WAITING_FOR_TASK`, `PLACING`,
+`CONVEYOR_MOVING`, `TASK_DONE`, `ERROR` 상태가 존재하지 않는다.**
+제안된 모델과의 매핑은 다음과 같다:
 
-| Proposed state | Closest TaskState | Notes |
+| 제안 상태 | 가장 가까운 TaskState | 비고 |
 |---|---|---|
-| `IDLE` | `IDLE` | Set in `__init__` before the worker starts |
-| `WAITING_FOR_TASK` | `IDLE` | When `autostart=false`, the node sits in `IDLE` until `/task/start` |
-| `DETECTING` | `DETECT` | Set immediately before `_detect_once` |
-| `PICKING` | `PICK_AND_PLACE` | Covers approach → grasp → verify_grip → lift |
-| `PLACING` | `PICK_AND_PLACE` | Inferred externally from `/conveyor/place_ready` edge |
-| `CONVEYOR_MOVING` | `PICK_AND_PLACE` | Same: derived from the same edge by `firebase_status_bridge` |
-| `TASK_DONE` | `DONE` | Final state on success |
-| `ERROR` | `ABORTED` (and `SAFETY_STOP` for cancellation) | `aborted` carries a reason in the info field |
+| `IDLE` | `IDLE` | 워커가 시작되기 전 `__init__`에서 설정 |
+| `WAITING_FOR_TASK` | `IDLE` | `autostart=false`이면 노드는 `/task/start`까지 `IDLE`에 머무른다 |
+| `DETECTING` | `DETECT` | `_detect_once` 직전에 설정 |
+| `PICKING` | `PICK_AND_PLACE` | approach → grasp → verify_grip → lift를 포괄 |
+| `PLACING` | `PICK_AND_PLACE` | `/conveyor/place_ready` 에지에서 외부적으로 추론 |
+| `CONVEYOR_MOVING` | `PICK_AND_PLACE` | 동일: `firebase_status_bridge`가 동일 에지로부터 도출 |
+| `TASK_DONE` | `DONE` | 성공 시 최종 상태 |
+| `ERROR` | `ABORTED` (취소의 경우 `SAFETY_STOP`) | `aborted`는 info 필드에 사유를 담는다 |
 
-### 4.1 Transitions (real names)
+### 4.1 전환 (실제 이름)
 
 ```
                   ┌───── /task/start ─────┐
@@ -260,177 +262,182 @@ proposed model is:
                                 └──────────┘               └──────────────┘
 ```
 
-The retry decisions are encoded in
-`cobot_task_manager/cobot_task_manager/retry_policy.py`:
+재시도 결정은 `cobot_task_manager/cobot_task_manager/retry_policy.py`에
+인코딩되어 있다:
 
-- `on_detect_miss(consecutive_misses)` → `RETRY_DETECT` until
-  `max_detect_misses`, then `SKIP_CLASS`.
+- `on_detect_miss(consecutive_misses)` → `max_detect_misses`까지
+  `RETRY_DETECT`, 이후 `SKIP_CLASS`.
 - `on_action_failure(failure_code, consecutive_grasp)`:
-  - code 2 (`grasp_not_detected`) → `RETRY_PICK` until
-    `max_grasp_failures`, then `SKIP_CLASS`.
-  - codes 1, 3, 4, 5 (`approach_fail`, `motion_fail`, `safety_stop`,
-    `workspace_violation`) → `ABORT` (human intervention required).
+  - 코드 2 (`grasp_not_detected`) → `max_grasp_failures`까지
+    `RETRY_PICK`, 이후 `SKIP_CLASS`.
+  - 코드 1, 3, 4, 5 (`approach_fail`, `motion_fail`, `safety_stop`,
+    `workspace_violation`) → `ABORT` (사람의 개입 필요).
 
 ---
 
-## 5. Pick-and-Place Sequence
+## 5. Pick-and-Place 시퀀스
 
-The action server lives in `robot_control_node`; the actual stage
-sequence is in
-`cobot_robot_control/cobot_robot_control/motion_sequence.py`'s
-`execute_pick_and_place`. A successful pick fires the following stages
-(strings emitted as feedback):
+액션 서버는 `robot_control_node`에 위치하며, 실제 단계 시퀀스는
+`cobot_robot_control/cobot_robot_control/motion_sequence.py`의
+`execute_pick_and_place`에 있다. 성공적인 픽은 다음 단계들을
+발생시킨다 (피드백으로 발행되는 문자열):
 
-1. **Detect requested nut** — `task_manager_node` calls
-   `/perception/detect_once`. (Outside the action.)
-2. **Transform target to base frame** — `perception_transform_node`
-   computes `base_xyz`, `grasp_yaw`, `short_axis_mm`, `long_axis_mm` for
-   each detection and the task manager picks a candidate via
-   `target_selector.choose_target` (class + workspace + confidence + depth
-   + transform-valid filter; tiebreak by OBB area then confidence).
-3. **`pre_grasp_width`** — gripper opens to `pre_grasp_width_mm` (short
-   axis + margin, clamped). Skipped if `≤0`.
-4. **`approach`** — line move to `[grasp_x, grasp_y, grasp_z + approach_offset_z_mm]`,
-   nominal velocity. Workspace guard ran already (rejected with
-   `failure_code=5` before any motion).
-5. **`grasp`** — slow-speed line move down to `grasp_pose`, then
-   `gripper.close()`, then `wait_until_idle` (busy=True → busy=False).
-6. **`verify_grip`** — `gripper.is_grip_detected()`; if false, open the
-   gripper, retreat to the approach pose, and abort with
-   `failure_code=2` (`grasp_not_detected`).
-7. **`lift`** — line move back up to the approach pose at nominal speed.
-8. **`transit`** — line move to `above_return = [return_x, return_y,
-   return_z + approach_offset_z_mm]`.
-9. **`place`** — slow-speed line move down to `place_pose`
-   (`[return_x, return_y, return_z]`), `gripper.open()`, `wait_until_idle`,
-   then evaluate `is_tcp_at_place_y()` (TCP y within `place_y_margin_mm`
-   of `return_y`). On success, `place_ready_cb(True, "gripper_open_at_place")`
-   fires — `robot_control_node` flips `/conveyor/place_ready` to True.
-10. **Place-ready event** — `conveyor_serial_node` sees the False→True
-    edge on `/conveyor/place_ready` and starts a single timed advance.
-11. **`retreat`** — line move back to `above_return`; `place_ready_cb(False, "retreat")`
-    flips the topic back to False (only after the conveyor edge has been
-    captured).
-12. **`home`** — joint move to `home_joints_deg`. The action returns
-    `success=True, failure_code=0`.
+1. **요청된 너트 감지** — `task_manager_node`가
+   `/perception/detect_once`를 호출한다. (액션 외부.)
+2. **타겟을 베이스 프레임으로 변환** — `perception_transform_node`가
+   각 감지에 대해 `base_xyz`, `grasp_yaw`, `short_axis_mm`,
+   `long_axis_mm`을 계산하고, task manager가
+   `target_selector.choose_target` (클래스 + 워크스페이스 + 신뢰도 +
+   깊이 + transform-valid 필터; OBB 면적 후 신뢰도로 동점 처리)을
+   통해 후보를 선택한다.
+3. **`pre_grasp_width`** — 그리퍼가 `pre_grasp_width_mm` (단축 + 마진,
+   클램프 적용)으로 열린다. `≤0`이면 건너뛴다.
+4. **`approach`** — `[grasp_x, grasp_y, grasp_z + approach_offset_z_mm]`로
+   기본 속도의 직선 이동. 워크스페이스 가드는 이미 실행되었다 (모든
+   모션 전에 `failure_code=5`로 거부).
+5. **`grasp`** — `grasp_pose`까지 저속 직선 이동, 이후
+   `gripper.close()`, 그 다음 `wait_until_idle` (busy=True →
+   busy=False).
+6. **`verify_grip`** — `gripper.is_grip_detected()`; false이면
+   그리퍼를 열고, approach pose로 후퇴하고, `failure_code=2`
+   (`grasp_not_detected`)로 abort한다.
+7. **`lift`** — 기본 속도로 approach pose까지 직선 이동하여 다시 위로
+   올린다.
+8. **`transit`** — `above_return = [return_x, return_y,
+   return_z + approach_offset_z_mm]`로 직선 이동.
+9. **`place`** — `place_pose` (`[return_x, return_y, return_z]`)까지
+   저속 직선 이동, `gripper.open()`, `wait_until_idle`, 이후
+   `is_tcp_at_place_y()` (TCP y가 `return_y`로부터 `place_y_margin_mm`
+   이내)를 평가한다. 성공 시
+   `place_ready_cb(True, "gripper_open_at_place")`가 발화 —
+   `robot_control_node`가 `/conveyor/place_ready`를 True로 뒤집는다.
+10. **place-ready 이벤트** — `conveyor_serial_node`가
+    `/conveyor/place_ready`의 False→True 에지를 감지하고 한 번의 시간
+    기반 진행을 시작한다.
+11. **`retreat`** — `above_return`까지 직선 이동;
+    `place_ready_cb(False, "retreat")`가 토픽을 다시 False로 뒤집는다
+    (컨베이어 에지가 캡처된 이후에만).
+12. **`home`** — `home_joints_deg`로 조인트 이동. 액션은
+    `success=True, failure_code=0`을 반환한다.
 
-`task_manager_node` then sleeps `inter_pick_delay_sec` (default `0.5` s)
-to let mid-motion camera frames drain from
-`perception_transform_node`'s buffer before issuing the next
-`detect_once`.
-
----
-
-## 6. Conveyor Trigger Logic
-
-- **Publisher**: `robot_control_node`. The topic is `/conveyor/place_ready`
-  (`std_msgs/Bool`). It is published at `place_ready_publish_period_sec`
-  (default `0.1` s, i.e. 10 Hz) by a timer plus eagerly on every state
-  change inside `_set_place_ready`. The True transition is set during the
-  `place` stage when `is_tcp_at_place_y()` is true and the gripper has
-  opened. The False transition is set on `retreat`, on `pick_and_place`
-  finish, on `/robot/stop`, and on motion errors / TCP read failures.
-- **Subscribers**: `conveyor_serial_node` (the actual hardware driver) and
-  `firebase_status_bridge` (mirrors the edge to Firestore as
-  `placing` + `conveyor_moving` `robot_state` writes, back to back).
-- **Why edge-triggered**: the topic is published continuously at 10 Hz,
-  so the conveyor cannot use level semantics — it would re-trigger every
-  cycle. `conveyor_serial_node._place_ready_callback` keeps a
-  `self._last_place_ready` flag and only acts on `False → True`. A second
-  edge that arrives while a previous run is still active is logged
-  (`Ignoring place_ready trigger while conveyor auto-run is active`) and
-  ignored. Held-True does not re-trigger.
-- **Movement is duration-based, not step-based.** On a True edge the
-  node sends `auto_command` (default `R80`) over serial, starts a
-  one-shot `create_timer(auto_run_duration_sec, _auto_stop_callback)`,
-  and on timer expiry sends `STOP`. The Arduino sketch
-  (`conveyor_controller/arduino/ConveyorControl_Program/`) speaks
-  `F<1-100>`, `R<1-100>`, `STOP` — there is no current "run for N steps"
-  command. Step-mode firmware (`S<N>` + ack) is documented as **future
-  work** in `conveyor_controller/README.md`; treat the per-pick advance
-  distance as approximate and verify with a tape measure when first
-  setting up.
+이후 `task_manager_node`는 `inter_pick_delay_sec` (기본 `0.5` s) 동안
+sleep 하여, 다음 `detect_once`를 발행하기 전 모션 중 카메라 프레임이
+`perception_transform_node`의 버퍼에서 비워지도록 한다.
 
 ---
 
-## 7. Configuration and Parameters
+## 6. 컨베이어 트리거 로직
 
-This section lists the knobs you will most often touch when switching
-between mock and real hardware. Each item points at the file where the
-authoritative default lives.
+- **게시자**: `robot_control_node`. 토픽은 `/conveyor/place_ready`
+  (`std_msgs/Bool`). 타이머에 의해 `place_ready_publish_period_sec`
+  (기본 `0.1` s, 즉 10 Hz)으로 발행되며, 추가로 `_set_place_ready`
+  내부의 모든 상태 변화에서 즉시 발행된다. True 전환은 `place`
+  단계에서 `is_tcp_at_place_y()`가 true이고 그리퍼가 열렸을 때
+  설정된다. False 전환은 `retreat`, `pick_and_place` 종료,
+  `/robot/stop`, 모션 오류 / TCP 읽기 실패 시 설정된다.
+- **구독자**: `conveyor_serial_node` (실제 하드웨어 드라이버)와
+  `firebase_status_bridge` (에지를 Firestore의 `placing` +
+  `conveyor_moving` `robot_state` 쓰기로 연속해서 미러링).
+- **에지 트리거인 이유**: 토픽이 10 Hz로 지속 발행되므로, 컨베이어는
+  레벨 의미를 사용할 수 없다 — 그러면 매 사이클마다 재트리거된다.
+  `conveyor_serial_node._place_ready_callback`은
+  `self._last_place_ready` 플래그를 유지하며 `False → True`에서만
+  동작한다. 이전 실행이 여전히 활성 상태인 동안 도착하는 두 번째
+  에지는 로그(`Ignoring place_ready trigger while conveyor auto-run is active`)에
+  남기고 무시한다. True 유지 상태는 재트리거하지 않는다.
+- **이동은 시간 기반이며 스텝 기반이 아니다.** True 에지에서 노드는
+  `auto_command` (기본 `R80`)를 시리얼로 전송하고, 일회성
+  `create_timer(auto_run_duration_sec, _auto_stop_callback)`를
+  시작하며, 타이머 만료 시 `STOP`을 보낸다. Arduino 스케치
+  (`conveyor_controller/arduino/ConveyorControl_Program/`)는
+  `F<1-100>`, `R<1-100>`, `STOP`을 사용한다 — 현재 "N 스텝 동안
+  실행" 명령은 없다. 스텝 모드 펌웨어 (`S<N>` + ack)는
+  `conveyor_controller/README.md`에 **future work**로 문서화되어
+  있다; 픽당 진행 거리는 근사치로 취급하고 처음 설정 시 줄자로
+  검증해야 한다.
 
-### 7.1 Mock vs real mode
+---
 
-There are three independent dials that together select dry-run / mock /
-real behavior:
+## 7. 설정 및 파라미터
 
-| Dial | File | Values | Effect |
+이 절은 mock 와 real 하드웨어 사이를 전환할 때 가장 자주 만지게 될
+설정값을 나열한다. 각 항목은 권위 있는 기본값이 위치한 파일을
+가리킨다.
+
+### 7.1 mock 와 real 모드
+
+dry-run / mock / real 동작을 함께 선택하는 세 개의 독립 다이얼이
+있다:
+
+| Dial | File | 값 | 효과 |
 |---|---|---|---|
-| `motion_backend` | `cobot_robot_control/config/robot_control.yaml` (mock-default) or `robot_control.real.yaml` | `mock` \| `real` | `mock` returns immediately; `real` binds DSR_ROBOT2 and moves the Doosan |
-| `gripper_backend` | same | `mock` \| `modbus` \| `tool_dio` (stub) | `modbus` opens a Modbus TCP client to RG2 |
-| `tcp_source` | `cobot_perception/config/perception.yaml` | `fixed` \| `service` | `service` calls `/robot/get_current_pose` per detect cycle (default in real mode) |
+| `motion_backend` | `cobot_robot_control/config/robot_control.yaml` (mock 기본) 또는 `robot_control.real.yaml` | `mock` \| `real` | `mock`은 즉시 반환; `real`은 DSR_ROBOT2를 바인딩하고 Doosan을 움직인다 |
+| `gripper_backend` | 동일 | `mock` \| `modbus` \| `tool_dio` (스텁) | `modbus`는 RG2에 Modbus TCP 클라이언트를 연다 |
+| `tcp_source` | `cobot_perception/config/perception.yaml` | `fixed` \| `service` | `service`는 detect 사이클마다 `/robot/get_current_pose`를 호출한다 (real 모드의 기본값) |
 
-Top-level launch toggles in `cobot_bringup/launch/full_system.launch.py`:
+`cobot_bringup/launch/full_system.launch.py`의 최상위 launch 토글:
 
 - `enable_realsense:=true|false`
 - `enable_dsr_bringup:=true|false`
 - `dsr_mode:=virtual|real`
 - `task_autostart:=true|false`
 - `order_source:=mock|db|file`
-- `file_order_path:=<absolute path to latest_order.json>`
+- `file_order_path:=<latest_order.json의 절대 경로>`
 - `enable_firebase_status_bridge:=true|false`
 - `config_robot_control:=<share>/cobot_robot_control/config/robot_control.real.yaml`
 
-To opt **into** real hardware you must pass *both*
-`enable_dsr_bringup:=true dsr_mode:=real` *and* the real-config path —
-otherwise the safe mock-default YAML wins.
+real 하드웨어로 **들어가려면**
+`enable_dsr_bringup:=true dsr_mode:=real` *과* real-config 경로를
+*함께* 전달해야 한다 — 그렇지 않으면 안전한 mock 기본 YAML이
+이긴다.
 
-### 7.2 Robot IP and ports
+### 7.2 로봇 IP 와 포트
 
-- Doosan controller — `host:=192.168.1.100`, `port:=12345` (defaults in
-  `robot.launch.py`). Override per environment if needed.
-- OnRobot RG2 — `gripper_ip: 192.168.1.1`, `gripper_port: 502` (in
-  `robot_control.yaml`). Modbus TCP.
+- Doosan 컨트롤러 — `host:=192.168.1.100`, `port:=12345`
+  (`robot.launch.py`의 기본값). 환경에 따라 필요시 오버라이드.
+- OnRobot RG2 — `gripper_ip: 192.168.1.1`, `gripper_port: 502`
+  (`robot_control.yaml`). Modbus TCP.
 
-### 7.3 Conveyor serial port
+### 7.3 컨베이어 시리얼 포트
 
-- `port: /dev/ttyACM0` (default in
-  `conveyor_controller/config/conveyor_controller.yaml`).
-- `baudrate: 115200` — must match the Arduino sketch.
-- `arduino_reset_delay: 2.0` — wait after opening the port so the UNO
-  can finish its USB-reset boot.
-- Override with `ros2 launch conveyor_controller conveyor_controller.launch.py port:=/dev/ttyACMx baudrate:=...`.
+- `port: /dev/ttyACM0`
+  (`conveyor_controller/config/conveyor_controller.yaml`의 기본값).
+- `baudrate: 115200` — Arduino 스케치와 일치해야 한다.
+- `arduino_reset_delay: 2.0` — 포트를 연 후 UNO가 USB-reset 부팅을
+  마치도록 대기.
+- `ros2 launch conveyor_controller conveyor_controller.launch.py port:=/dev/ttyACMx baudrate:=...`로
+  오버라이드.
 
-### 7.4 Place point (return / drop pose)
+### 7.4 Place 지점 (return / drop pose)
 
-- In `cobot_task_manager/config/task_manager.yaml`:
+- `cobot_task_manager/config/task_manager.yaml`에서:
   ```yaml
   return_xyz_mm:  [367.0, -150.0, 90.0]
   return_zyz_deg: [168.0, 179.0, 168.0]
   ```
-  These are the goal `return_xyz` / `return_zyz_deg` fields on the action
-  goal.
-- `place_y_margin_mm: 3.0` (in `robot_control.yaml`) — the tolerance used
-  by `is_tcp_at_place_y()` when deciding to flip place_ready True.
-- `approach_offset_z_mm: 80.0` (in `robot_control.yaml`) — the lift used
-  for both approach and `above_return`.
+  이는 액션 goal의 `return_xyz` / `return_zyz_deg` 필드이다.
+- `place_y_margin_mm: 3.0` (`robot_control.yaml`) — place_ready를
+  True로 뒤집을지 결정할 때 `is_tcp_at_place_y()`가 사용하는 허용
+  오차.
+- `approach_offset_z_mm: 80.0` (`robot_control.yaml`) — approach 와
+  `above_return` 모두에 사용되는 lift.
 
-### 7.5 Per-class Z offsets
+### 7.5 클래스별 Z 오프셋
 
-- Single source of truth: `cobot_config/config/pick_offsets.yaml`.
-- Loader: `cobot_task_manager.pick_offsets.load_pick_offsets` resolves
-  in this order:
-  1. explicit `pick_offsets_path` parameter (in `task_manager.yaml`),
-  2. `COBOT_PICK_OFFSETS_PATH` env var,
-  3. `ament_index` share lookup,
-  4. source-tree fallback.
+- 단일 정보 출처: `cobot_config/config/pick_offsets.yaml`.
+- 로더: `cobot_task_manager.pick_offsets.load_pick_offsets`는 다음
+  순서로 해석한다:
+  1. 명시적 `pick_offsets_path` 파라미터 (`task_manager.yaml`),
+  2. `COBOT_PICK_OFFSETS_PATH` 환경 변수,
+  3. `ament_index` share 조회,
+  4. 소스 트리 fallback.
 
-  If none of those candidates points at a readable file, the loader
-  returns `DEFAULT_OFFSETS_MM` (`almond=0`, `cashew=0`, `pistachio=0`,
-  `walnut=-1.0`). Per-class entries missing from a YAML that *did* load
-  fall back to the same defaults.
-- Applied **only** at the pick stage, added to `goal.grasp_xyz.z`.
-- Current values:
+  이 후보들 중 어떤 것도 읽을 수 있는 파일을 가리키지 않으면,
+  로더는 `DEFAULT_OFFSETS_MM` (`almond=0`, `cashew=0`, `pistachio=0`,
+  `walnut=-1.0`)을 반환한다. *로드된* YAML에서 누락된 클래스별
+  항목은 동일한 기본값으로 fallback 된다.
+- pick 단계에서**만** 적용되며, `goal.grasp_xyz.z`에 더해진다.
+- 현재 값:
   ```yaml
   per_class_z_offset_mm:
     almond: 0.0
@@ -438,20 +445,19 @@ otherwise the safe mock-default YAML wins.
     pistachio: 0.0
     walnut: -1.0
   ```
-- Note: `scripts/pick_one.py` and `scripts/pick_all.py` keep their own
-  `PER_CLASS_Z_OFFSET` dicts at the top; they are **not** loaded from
-  the YAML automatically. **Needs verification** whether they should be
-  (kept this way intentionally, per current code).
+- 참고: `scripts/pick_one.py`와 `scripts/pick_all.py`는 상단에 자체
+  `PER_CLASS_Z_OFFSET` 딕셔너리를 유지하며, YAML에서 자동으로
+  로드되지 **않는다**. 그래야 하는지 **검증 필요** (현재 코드 기준
+  의도적으로 이 방식을 유지).
 
 ### 7.6 ROS_DOMAIN_ID
 
-- Reference value `66` is recorded in `cobot_bringup/config/params.yaml`,
-  but **that file is not loaded by any launch file in `cobot_bringup/launch/`**.
-  The effective domain is whatever `ROS_DOMAIN_ID` is in the operator's
-  shell at launch time. **Needs verification** if you want this enforced
-  centrally.
+- 참조 값 `66`은 `cobot_bringup/config/params.yaml`에 기록되어
+  있지만, **그 파일은 `cobot_bringup/launch/`의 어떤 launch 파일에도
+  로드되지 않는다.** 유효 도메인은 launch 시점에 운영자 셸의
+  `ROS_DOMAIN_ID` 값이다. 중앙에서 강제하고 싶다면 **검증 필요**.
 
-### 7.7 Object detection model path
+### 7.7 객체 감지 모델 경로
 
 - `cobot_object_detection/config/object_detection.yaml`:
   ```yaml
@@ -460,30 +466,30 @@ otherwise the safe mock-default YAML wins.
   imgsz: 800
   conf_threshold: 0.75
   ```
-- Resolution order (`cobot_object_detection/cobot_object_detection/model_paths.py`):
-  1. explicit `model_path` (absolute, or relative to CWD, or relative to
-     ament share),
-  2. ament share `models/best.pt` (installed via
-     `cobot_object_detection/setup.py` from the
-     `experiments/cobot_OD_obb_nano/.../weights/best.pt` symlink),
-  3. source-tree fallback under `experiments/`.
+- 해석 순서 (`cobot_object_detection/cobot_object_detection/model_paths.py`):
+  1. 명시적 `model_path` (절대 경로, 또는 CWD 기준 상대, 또는 ament
+     share 기준 상대),
+  2. ament share `models/best.pt`
+     (`experiments/cobot_OD_obb_nano/.../weights/best.pt` 심볼릭
+     링크에서 `cobot_object_detection/setup.py`로 설치),
+  3. `experiments/` 아래의 소스 트리 fallback.
 
-### 7.8 Calibration config
+### 7.8 캘리브레이션 설정
 
-- `cobot_perception/config/perception.yaml` — `gripper2camera_npy` is
-  **required** (path to `T_gripper2camera.npy`); `depth_offset_mm`
-  default `-35.0`; `min_depth_camera_mm`/`max_depth_camera_mm`/`min_depth_base_mm`
-  gates.
-- `cobot_config/config/handeye.yaml` — reference values; not actually
-  loaded by `perception_transform_node` today.
-- `cobot_config/config/workspace.yaml` — reference values; the runtime
-  workspace lives in `task_manager.yaml` and `robot_control.yaml`.
+- `cobot_perception/config/perception.yaml` — `gripper2camera_npy`는
+  **필수** (`T_gripper2camera.npy` 경로); `depth_offset_mm` 기본값
+  `-35.0`; `min_depth_camera_mm`/`max_depth_camera_mm`/`min_depth_base_mm`
+  게이트.
+- `cobot_config/config/handeye.yaml` — 참조 값; 현재
+  `perception_transform_node`에서는 실제로 로드되지 않음.
+- `cobot_config/config/workspace.yaml` — 참조 값; 런타임 워크스페이스는
+  `task_manager.yaml`과 `robot_control.yaml`에 위치한다.
 
 ---
 
-## 8. Debugging Topics and Commands
+## 8. 디버깅 토픽 및 명령어
 
-### 8.1 Inspect the live graph
+### 8.1 라이브 그래프 검사
 
 ```bash
 ros2 node list
@@ -500,7 +506,7 @@ ros2 service info /perception/detect_once
 ros2 action info /robot/pick_and_place
 ```
 
-### 8.2 Watch the task manager
+### 8.2 task manager 관찰
 
 ```bash
 ros2 topic echo /task/status
@@ -508,25 +514,25 @@ ros2 topic echo /task/result
 ros2 topic echo /conveyor/place_ready
 ```
 
-`/task/status` is one line per state transition; `/task/result` is one
-line per task run, terminal only.
+`/task/status`는 상태 전환마다 한 줄; `/task/result`는 task 실행마다
+종단에서만 한 줄.
 
-### 8.3 Trigger a "fake" task start
+### 8.3 "가짜" task 시작 트리거
 
-When `task_autostart:=false`, the worker waits for an external trigger:
+`task_autostart:=false`이면 워커는 외부 트리거를 기다린다:
 
 ```bash
 ros2 service call /task/start std_srvs/srv/Trigger "{}"
 ```
 
-Expected reply: `success=True message='task started'` (or
+기대 응답: `success=True message='task started'` (또는
 `success=False message='task already running'`).
 
-To bypass the file-mode JSON entirely and test the whole loop with
-hardcoded counts, launch with `order_source:=mock` and the
-`mock_order_*` parameters in `task_manager.yaml`.
+파일 모드 JSON을 완전히 우회하고 하드코딩된 개수로 전체 루프를
+테스트하려면, `order_source:=mock`과 `task_manager.yaml`의
+`mock_order_*` 파라미터로 launch 한다.
 
-### 8.4 Manually fire a place-ready edge (no robot needed)
+### 8.4 place-ready 에지 수동 발화 (로봇 불필요)
 
 ```bash
 # Flip True (one edge → one belt advance)
@@ -535,11 +541,11 @@ ros2 topic pub --once /conveyor/place_ready std_msgs/msg/Bool "{data: true}"
 ros2 topic pub --once /conveyor/place_ready std_msgs/msg/Bool "{data: false}"
 ```
 
-`conveyor_serial_node` will run `auto_command` for `auto_run_duration_sec`
-and STOP. Useful for verifying conveyor wiring without running the
-robot.
+`conveyor_serial_node`는 `auto_run_duration_sec` 동안 `auto_command`를
+실행하고 STOP 한다. 로봇을 돌리지 않고 컨베이어 배선을 검증하는 데
+유용하다.
 
-### 8.5 Manually drive the conveyor
+### 8.5 컨베이어 수동 구동
 
 ```bash
 ros2 topic pub --once /conveyor_cmd std_msgs/msg/String "{data: 'F30'}"
@@ -547,7 +553,7 @@ ros2 topic pub --once /conveyor_cmd std_msgs/msg/String "{data: 'R30'}"
 ros2 topic pub --once /conveyor_cmd std_msgs/msg/String "{data: 'STOP'}"
 ```
 
-### 8.6 Sanity-check perception and robot
+### 8.6 perception 과 robot 정상 점검
 
 ```bash
 # Camera streaming?
@@ -567,17 +573,18 @@ ros2 service call /robot/home std_srvs/srv/Trigger "{}"
 ros2 service call /robot/stop std_srvs/srv/Trigger "{}"
 ```
 
-### 8.7 Send a single pick action by hand
+### 8.7 단일 픽 액션을 수동으로 전송
 
-The repo ships scripts that assemble a `PickAndPlace` goal from a
-`detect_once` response — preferred over composing the goal yaml by hand:
+저장소에는 `detect_once` 응답으로부터 `PickAndPlace` goal을
+조립하는 스크립트가 포함되어 있다 — goal yaml을 직접 작성하기보다
+이쪽이 권장된다:
 
 ```bash
 ~/cobot2_ws/scripts/pick_one.py cashew --dry-run         # print only
 ~/cobot2_ws/scripts/pick_one.py cashew --z-override 315  # send action
 ```
 
-For a programmatic CLI form:
+프로그래밍적 CLI 형식:
 
 ```bash
 ros2 action send_goal -f /robot/pick_and_place cobot_msgs/action/PickAndPlace \
@@ -589,11 +596,11 @@ ros2 action send_goal -f /robot/pick_and_place cobot_msgs/action/PickAndPlace \
     return_zyz_deg: [168.0, 179.0, 168.0]}"
 ```
 
-> Always `--dry-run` first against a real robot. The action server's
-> workspace guard rejects out-of-box goals with `failure_code=5` before
-> motion, but the operator should still verify the numbers are sane.
+> 실제 로봇 대상으로는 항상 먼저 `--dry-run` 한다. 액션 서버의
+> 워크스페이스 가드는 박스 밖 goal을 모션 전에 `failure_code=5`로
+> 거부하지만, 운영자는 여전히 숫자가 합리적인지 검증해야 한다.
 
-### 8.8 Inspect parameters at runtime
+### 8.8 런타임 파라미터 검사
 
 ```bash
 ros2 param list /task_manager_node
@@ -603,24 +610,24 @@ ros2 param get  /perception_transform_node tcp_source
 ros2 param set  /conveyor_serial_node auto_run_duration_sec 3.0
 ```
 
-### 8.9 Tail node logs
+### 8.9 노드 로그 추적
 
-`ros2 launch ... output:=screen` is the default in this repo, but if you
-need to read after the fact:
+이 저장소에서는 `ros2 launch ... output:=screen`이 기본값이지만, 사후
+확인이 필요하다면:
 
 ```bash
 ls -t ~/.ros/log/                 # newest run first
 ros2 launch cobot_bringup full_system.launch.py | tee /tmp/run.log
 ```
 
-Look for these markers at boot (mirror of the existing run manual):
+부팅 시 다음 마커들을 살펴본다 (기존 운영 매뉴얼의 미러):
 
 - `Subscribed to /camera/camera/color/image_raw, publishing on /detection/objects`
 - `Service /perception/detect_once ready`
 - `robot_control_node ready (action=/robot/pick_and_place)`
-- `FileOrderProvider reading /.../latest_order.json` (only when
-  `order_source:=file`)
+- `FileOrderProvider reading /.../latest_order.json` (`order_source:=file`
+  일 때만)
 
-The companion document `docs/03_run_manual.md` chains these checks into
-a recommended boot order, and `docs/04_validation_checklist.md` lists
-the exact pass/fail criteria.
+동반 문서 `docs/03_run_manual.md`은 이 점검들을 권장 부팅 순서로
+연결하고, `docs/04_validation_checklist.md`는 정확한 통과/실패
+기준을 나열한다.

@@ -1,76 +1,72 @@
-# Validation Checklist
+# 검증 체크리스트
 
-A pre-flight checklist for the integrated cobot nut-picking system.
-Walk through it top to bottom before each real-hardware session, and
-again whenever you edit perception, motion, calibration, or
-task-manager code.
+통합 cobot 너트 피킹 시스템의 사전 점검 체크리스트다.
+실제 하드웨어 세션 전마다, 그리고 perception, motion, calibration,
+task-manager 코드를 수정할 때마다 위에서 아래로 따라간다.
 
-## Index
+## 목차
 
-1. Documentation Scope
-2. Static Checks
-3. ROS Graph Checks
-4. Voice Pipeline Checks
-5. Task Manager Checks
-6. Perception Checks
-7. Robot / Gripper Dry-Run Checks
-8. Conveyor Checks
-9. Real-Hardware Preflight
-10. Acceptance Criteria
+1. 문서 범위
+2. Static 점검
+3. ROS 그래프 점검
+4. 음성 파이프라인 점검
+5. Task Manager 점검
+6. Perception 점검
+7. Robot / Gripper Dry-Run 점검
+8. 컨베이어 점검
+9. 실제 하드웨어 사전 점검
+10. 합격 기준
 
-## Document set
+## 문서 세트
 
-- `docs/01_system_architecture.md` — what the system does and why.
-- `docs/02_ros_node_architecture.md` — node-level interface reference,
-  state machine, and debugging commands.
-- `docs/03_run_manual.md` — operational run order, mock and real.
-- `docs/04_validation_checklist.md` — **this file**.
-- `docs/cleanup_deletion_proposal.md` and
-  `_archive_cleanup/<YYYYMMDD>/cleanup_manifest.md` — cleanup records.
-  The static-check section §2 explicitly excludes `_archive_cleanup/`
-  from grep scopes; treat it as inactive.
+- `docs/01_system_architecture.md` — 시스템이 무엇을 왜 하는지.
+- `docs/02_ros_node_architecture.md` — 노드 단위 인터페이스 레퍼런스,
+  상태 머신, 디버깅 명령어.
+- `docs/03_run_manual.md` — mock 및 real 운용 실행 순서.
+- `docs/04_validation_checklist.md` — **이 파일**.
+- `docs/cleanup_deletion_proposal.md` 및
+  `_archive_cleanup/<YYYYMMDD>/cleanup_manifest.md` — 정리 기록.
+  Static 점검 §2 섹션은 grep 범위에서 `_archive_cleanup/`을 명시적으로
+  제외한다. 비활성으로 취급한다.
 
-> **Naming convention used throughout.** The Doosan-side **node names**
-> are namespaced (`/dsr01/robot_control_node`,
-> `/dsr01/robot_action_helper`, `/dsr01/robot_pose_helper`), but the
-> **services and actions** are absolute (`/robot/pick_and_place`,
-> `/robot/home`, `/robot/stop`, `/robot/get_current_pose`). They are
-> declared with a leading `/` in `robot_control.yaml` and called with
-> the same absolute names from `task_manager.yaml`. See
-> `docs/02_ros_node_architecture.md` §3 for the full interface table.
-
----
-
-## 1. Documentation Scope
-
-This checklist verifies that the system is **safe and ready to operate**
-end-to-end:
-
-- All packages build, all launch files load, all interfaces exist.
-- The ROS graph contains the expected nodes, topics, services, and
-  actions.
-- The voice pipeline produces a valid order, the task manager consumes
-  it, perception returns transformed candidates, and the action server
-  accepts goals — all in **mock mode** before any real motion.
-- A real-hardware preflight (network, USB, E-stop, workspace) passes.
-- A single-nut real pick succeeds before a multi-nut run.
-
-The checklist does **not** cover model training, hand-eye calibration,
-or web/Firebase project setup.
-
-How to use:
-
-- Mark each item ✅ pass / ❌ fail. Do not skip ❌ items.
-- Log evidence in your own session notebook (timestamps, terminal
-  excerpts).
-- §10 contains the exit criteria — the system is "ready" only when
-  every item there passes.
+> **전반에 걸쳐 사용되는 명명 규약.** Doosan 측 **노드 이름**은
+> 네임스페이스가 적용되어 있다(`/dsr01/robot_control_node`,
+> `/dsr01/robot_action_helper`, `/dsr01/robot_pose_helper`). 그러나
+> **서비스와 액션**은 절대 경로다(`/robot/pick_and_place`,
+> `/robot/home`, `/robot/stop`, `/robot/get_current_pose`).
+> `robot_control.yaml`에서 선행 `/`로 선언되며, `task_manager.yaml`에서
+> 동일한 절대 이름으로 호출된다. 전체 인터페이스 표는
+> `docs/02_ros_node_architecture.md` §3 참조.
 
 ---
 
-## 2. Static Checks
+## 1. 문서 범위
 
-### 2.1 Packages build cleanly
+이 체크리스트는 시스템이 엔드-투-엔드로 **안전하고 운용 준비가 되었는지**
+검증한다.
+
+- 모든 패키지가 빌드되고, 모든 launch 파일이 로드되며, 모든 인터페이스가 존재한다.
+- ROS 그래프에 예상된 노드, 토픽, 서비스, 액션이 포함된다.
+- 음성 파이프라인이 유효한 주문을 생성하고, task manager가 이를 소비하며,
+  perception이 변환된 후보를 반환하고, 액션 서버가 goal을 받는다 — 모두
+  실제 모션 이전에 **mock 모드**에서.
+- 실제 하드웨어 사전 점검(네트워크, USB, E-stop, 워크스페이스)이 통과한다.
+- 다중 너트 실행 전에 단일 너트 실제 픽이 성공한다.
+
+이 체크리스트는 모델 학습, 핸드-아이 캘리브레이션,
+또는 web/Firebase 프로젝트 셋업은 다루지 **않는다**.
+
+사용 방법:
+
+- 각 항목을 ✅ 통과 / ❌ 실패로 표시한다. ❌ 항목은 건너뛰지 않는다.
+- 자신의 세션 노트북에 근거를 기록한다(타임스탬프, 터미널 발췌).
+- §10에 종료 기준이 있다. 거기 모든 항목이 통과해야만 시스템은 "준비됨"이다.
+
+---
+
+## 2. Static 점검
+
+### 2.1 패키지가 깨끗하게 빌드된다
 
 ```bash
 cd ~/cobot2_ws
@@ -78,32 +74,32 @@ colcon build --symlink-install
 source install/setup.bash
 ```
 
-Expected: every package finishes with `Finished <<<`. No `Failed <<<`,
-no missing-dependency errors.
+기대값: 모든 패키지가 `Finished <<<`로 끝난다. `Failed <<<`이나
+의존성 누락 오류가 없다.
 
-Run unit tests where present:
+존재하는 곳에서 단위 테스트를 실행한다.
 
 ```bash
 colcon test --packages-select cobot_object_detection cobot_robot_control cobot_task_manager
 colcon test-result --verbose
 ```
 
-Expected test files (already in the repo):
+기대 테스트 파일(이미 저장소에 존재):
 
 - `cobot_object_detection/test/test_model_paths.py`
 - `cobot_robot_control/test/test_motion_sequence_workspace.py`
 - `cobot_task_manager/test/test_order_provider_db.py`
 - `cobot_task_manager/test/test_pick_offsets.py`
-- Pure-Python tests in `cobot_voice/` (run with `pytest` directly):
+- `cobot_voice/`의 순수 Python 테스트(`pytest`로 직접 실행):
   ```bash
   cd ~/cobot2_ws/cobot_voice
   python3 -m pytest -q
   ```
-  These exercise `test_env.py`, `test_firebase_bridge.py`,
+  이는 `test_env.py`, `test_firebase_bridge.py`,
   `test_firebase_status_bridge.py`, `test_nut_recommendation.py`,
-  `test_question_flow.py`, `test_web_voice_bridge_server.py`.
+  `test_question_flow.py`, `test_web_voice_bridge_server.py`를 검증한다.
 
-### 2.2 Launch files exist and are syntactically valid
+### 2.2 launch 파일이 존재하고 문법적으로 유효하다
 
 ```bash
 # Composite + sub-launches
@@ -122,8 +118,8 @@ ls $(ros2 pkg prefix cobot_task_manager)/share/cobot_task_manager/launch/
 ls $(ros2 pkg prefix conveyor_controller)/share/conveyor_controller/launch/
 ```
 
-Quick syntax check (does not actually start nodes — `--show-args`
-parses the description):
+빠른 문법 점검(실제로 노드를 시작하지 않는다 — `--show-args`는
+description을 파싱한다).
 
 ```bash
 ros2 launch cobot_bringup full_system.launch.py --show-args
@@ -133,10 +129,9 @@ ros2 launch cobot_bringup robot.launch.py --show-args
 ros2 launch conveyor_controller conveyor_controller.launch.py --show-args
 ```
 
-Expected: a list of declared arguments with defaults, no Python
-exceptions.
+기대값: 기본값과 함께 선언된 인자 목록, Python 예외 없음.
 
-### 2.3 Config files load
+### 2.3 config 파일이 로드된다
 
 ```bash
 # Installed YAMLs land here
@@ -150,26 +145,26 @@ find $(ros2 pkg prefix conveyor_controller)/share/conveyor_controller/config -na
 find $(ros2 pkg prefix cobot_voice)/share/cobot_voice/config -name '*.json'
 ```
 
-Expected at least:
+최소한 다음이 있어야 한다.
 
 - `cobot_object_detection/.../object_detection.yaml`
 - `cobot_perception/.../perception.yaml`
-- `cobot_robot_control/.../robot_control.yaml` and `robot_control.real.yaml`
+- `cobot_robot_control/.../robot_control.yaml` 및 `robot_control.real.yaml`
 - `cobot_task_manager/.../task_manager.yaml`
 - `conveyor_controller/.../conveyor_controller.yaml`
 - `cobot_voice/.../keyword_categories.json`,
   `nut_combo_rules.json`, `question_flow.json`
 
-Spot-check parseability:
+파싱 가능 여부 스팟 체크.
 
 ```bash
 python3 -c "import yaml; yaml.safe_load(open('$(ros2 pkg prefix cobot_task_manager)/share/cobot_task_manager/config/task_manager.yaml'))"
 python3 -c "import json; json.load(open('$(ros2 pkg prefix cobot_voice)/share/cobot_voice/config/keyword_categories.json'))"
 ```
 
-Expected: silent success.
+기대값: 조용히 성공.
 
-### 2.4 Message / service / action interfaces present
+### 2.4 메시지 / 서비스 / 액션 인터페이스 존재
 
 ```bash
 ros2 interface show cobot_msgs/msg/DetectedObject
@@ -180,14 +175,12 @@ ros2 interface show cobot_msgs/srv/GetNutOrder
 ros2 interface show cobot_msgs/action/PickAndPlace
 ```
 
-Expected: each command prints the interface body without a
-`Could not find` error.
+기대값: 각 명령이 `Could not find` 오류 없이 인터페이스 본문을 출력한다.
 
-### 2.5 No stale `command_parser_node` references
+### 2.5 stale `command_parser_node` 참조 없음
 
-`command_parser_node` and `firebase_state_bridge` were removed during
-the voice→robot integration cleanup. They should not appear anywhere
-in the runtime tree.
+`command_parser_node`와 `firebase_state_bridge`는 voice→robot 통합
+정리 과정에서 제거되었다. 런타임 트리 어디에도 나타나서는 안 된다.
 
 ```bash
 grep -RnE "command_parser_node|firebase_state_bridge" \
@@ -196,22 +189,22 @@ grep -RnE "command_parser_node|firebase_state_bridge" \
     conveyor_controller scripts 2>/dev/null
 ```
 
-Expected: **no output**. (Hits inside `docs/` historical change-logs are
-allowed and do not need to be cleaned.)
+기대값: **출력 없음**. (`docs/` 내 기록용 변경 로그의 히트는 허용되며
+정리할 필요가 없다.)
 
 ---
 
-## 3. ROS Graph Checks
+## 3. ROS 그래프 점검
 
-Run after launching the full system in mock mode (§5 of the run manual).
+mock 모드에서 전체 시스템을 launch한 후 실행한다(run manual §5).
 
-### 3.1 Nodes
+### 3.1 노드
 
 ```bash
 ros2 node list
 ```
 
-Expected entries (mock mode, `enable_realsense:=false`,
+기대 항목(mock 모드, `enable_realsense:=false`,
 `enable_dsr_bringup:=false`, `enable_firebase_status_bridge:=true`):
 
 - `/object_detection_node`
@@ -220,46 +213,46 @@ Expected entries (mock mode, `enable_realsense:=false`,
 - `/dsr01/robot_action_helper`
 - `/dsr01/robot_pose_helper`
 - `/task_manager_node`
-- `/firebase_status_bridge` (only if enabled)
+- `/firebase_status_bridge` (활성화된 경우에만)
 
-In real mode also expect `/camera/camera` (RealSense) and the
-`/dsr01/dsr_*` controllers from `dsr_bringup2`.
+real 모드에서는 추가로 `/camera/camera`(RealSense)와 `dsr_bringup2`의
+`/dsr01/dsr_*` 컨트롤러도 기대한다.
 
-If you ran with `enable_firebase_status_bridge:=false`, that node
-should be **absent**.
+`enable_firebase_status_bridge:=false`로 실행했다면, 해당 노드는
+**없어야** 한다.
 
-### 3.2 Topics
+### 3.2 토픽
 
 ```bash
 ros2 topic list -t
 ```
 
-Required:
+필수:
 
-| Topic | Type |
+| 토픽 | 타입 |
 |---|---|
 | `/detection/objects` | `cobot_msgs/msg/DetectedObjectArray` |
 | `/conveyor/place_ready` | `std_msgs/msg/Bool` |
 | `/task/status` | `std_msgs/msg/String` |
 | `/task/result` | `std_msgs/msg/String` |
 
-In real mode add:
+real 모드에서는 추가로:
 
 - `/camera/camera/color/image_raw`
 - `/camera/camera/aligned_depth_to_color/image_raw`
 - `/camera/camera/color/camera_info`
 
-If you run the conveyor:
+컨베이어를 실행하는 경우:
 
 - `/conveyor_cmd` (`std_msgs/msg/String`)
 
-### 3.3 Services
+### 3.3 서비스
 
 ```bash
 ros2 service list -t | grep -E "task|robot|perception|conveyor"
 ```
 
-Required:
+필수:
 
 - `/task/start                std_srvs/srv/Trigger`
 - `/perception/detect_once    cobot_msgs/srv/DetectOnce`
@@ -267,75 +260,76 @@ Required:
 - `/robot/stop                std_srvs/srv/Trigger`
 - `/robot/get_current_pose    cobot_msgs/srv/GetCurrentPose`
 
-The robot services use **absolute** names because they are declared
-with a leading `/` in `robot_control.yaml`; the host helper node
-(`/dsr01/robot_action_helper` for home/stop, `/dsr01/robot_pose_helper`
-for the pose service) lives in the `dsr01` namespace, but the service
-names themselves do not get prefixed. The Doosan-native upstream
-service is at `/dsr01/system/get_current_pose` (provided by
-`dsr_bringup2`).
+robot 서비스는 `robot_control.yaml`에서 선행 `/`로 선언되기 때문에
+**절대** 이름을 사용한다. 호스트 helper 노드(home/stop은
+`/dsr01/robot_action_helper`, pose 서비스는 `/dsr01/robot_pose_helper`)는
+`dsr01` 네임스페이스 내에 있지만, 서비스 이름 자체는 prefix가 붙지 않는다.
+Doosan 네이티브 상위 서비스는 `/dsr01/system/get_current_pose`에 있다
+(`dsr_bringup2` 제공).
 
-### 3.4 Actions
+### 3.4 액션
 
 ```bash
 ros2 action list -t
 ```
 
-Required:
+필수:
 
 - `/robot/pick_and_place    cobot_msgs/action/PickAndPlace`
 
-Verify the type:
+타입 검증:
 
 ```bash
 ros2 action info /robot/pick_and_place -t
 ```
 
-Expected: server `/dsr01/robot_action_helper` (a node — that one *is*
-namespaced); clients include `/task_manager_node` once a task has been
-started.
+기대값: 서버 `/dsr01/robot_action_helper` (노드 — 그건 *맞게*
+네임스페이스가 적용되어 있다); 클라이언트는 task가 시작되면
+`/task_manager_node`를 포함한다.
 
 ---
 
-## 4. Voice Pipeline Checks
+## 4. 음성 파이프라인 점검
 
-Run with the full system launched in **mock + file mode** (so the
-recommendation actually flows into the task manager):
+전체 시스템을 **mock + file 모드**로 launch하여 실행한다(추천이
+실제로 task manager까지 흘러가도록).
 
 ```bash
 ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false order_source:=file file_order_path:=/home/aes/cobot2_ws/cobot_voice/output/latest_order.json
 ```
 
-Verify the T1 task-manager log contains:
+T1 task-manager 로그에 다음이 포함되는지 확인한다.
 
 ```
 FileOrderProvider reading /home/aes/cobot2_ws/cobot_voice/output/latest_order.json
 ```
 
-### 4.1 TTS prompt
+### 4.1 TTS 프롬프트
 
 ```bash
 ~/cobot2_ws/scripts/voice_to_robot.py --debug
 ```
 
-Expected on the first prompt step:
+첫 번째 prompt 단계에서 기대값:
 
-- Console line `[TTS] 샤갈! 맞춤 견과류 콤보를 준비해드릴게요.`
-- Audible playback if `COBOT_TTS_ENABLED=1` (default) **and**
-  `ffplay` (ElevenLabs) or `spd-say` (fallback) is installed.
+- 콘솔 라인 `[TTS] 샤갈! 맞춤 견과류 콤보를 준비해드릴게요.`
+- `COBOT_TTS_ENABLED=1`(기본값)이고 **그리고**
+  `ffplay`(ElevenLabs) 또는 `spd-say`(fallback)가 설치되어 있으면
+  음성 재생.
 
-If `COBOT_TTS_PROVIDER=elevenlabs` is set, expect an HTTP request to
-`api.elevenlabs.io`. Failures are logged but do not break the flow.
+`COBOT_TTS_PROVIDER=elevenlabs`가 설정되어 있다면
+`api.elevenlabs.io`로의 HTTP 요청을 기대한다. 실패는 로그에 기록되지만
+플로우를 깨뜨리지는 않는다.
 
-### 4.2 STT returns text
+### 4.2 STT가 텍스트를 반환한다
 
-Two ways to verify:
+검증 방법은 두 가지다.
 
-- **Bypass STT** (fastest sanity check):
+- **STT 우회**(가장 빠른 sanity 체크):
   ```bash
   ~/cobot2_ws/scripts/voice_to_robot.py --text "피곤하고 집중이 안 돼서 많이"
   ```
-  Expected stdout:
+  기대 stdout:
   ```
   recognized_text : '피곤하고 집중이 안 돼서 많이'
   combo           : [{'nut': 'cashew', 'count': 3}, {'nut': 'walnut', 'count': 3}]
@@ -343,49 +337,49 @@ Two ways to verify:
   dispatched      : True
   ```
 
-- **Real Whisper** (microphone path):
+- **실제 Whisper**(마이크 경로):
   ```bash
   ~/cobot2_ws/scripts/voice_to_robot.py
   ```
-  Expected: console prints `STT 결과: <Korean text>` after each 5 s
-  recording window. Failures usually surface as Whisper API exceptions.
+  기대값: 5 s 녹음 윈도우마다 콘솔에 `STT 결과: <Korean text>`가
+  출력된다. 실패는 보통 Whisper API 예외로 드러난다.
 
-### 4.3 Keyword extraction returns condition + severity
+### 4.3 키워드 추출이 condition + severity를 반환한다
 
-After step 4.2, inspect the JSON:
+4.2 단계 후 JSON을 점검한다.
 
 ```bash
 cat ~/cobot2_ws/cobot_voice/output/latest_order.json
 ```
 
-Required fields and constraints:
+필수 필드와 제약:
 
-| Field | Validation |
+| 필드 | 검증 |
 |---|---|
-| `request_id` | Non-empty string, format `YYYYMMDD_HHMMSS` |
-| `recognized_text` | Non-empty when STT/text succeeded |
-| `categories` | Non-empty array; each value ∈ `{fatigue, blood_sugar, diet, focus}` |
+| `request_id` | 비어있지 않은 문자열, 형식 `YYYYMMDD_HHMMSS` |
+| `recognized_text` | STT/text 성공 시 비어있지 않음 |
+| `categories` | 비어있지 않은 배열; 각 값 ∈ `{fatigue, blood_sugar, diet, focus}` |
 | `intensity` | `low` / `normal` / `high` |
-| `combo` | Non-empty array of `{nut, count}` with `nut ∈ {almond, cashew, pistachio, walnut}` and `count ≥ 1` |
-| `combo_text` | Non-empty Korean string |
+| `combo` | 비어있지 않은 `{nut, count}` 배열, `nut ∈ {almond, cashew, pistachio, walnut}` 및 `count ≥ 1` |
+| `combo_text` | 비어있지 않은 한국어 문자열 |
 | `success` | `true` |
 
-If `success` is `false` or `combo` is empty, the order will be **rejected
-by `FileOrderProvider`** and the task manager will not pick anything
-(this is intentional).
+`success`가 `false`이거나 `combo`가 비어있으면, 주문은
+**`FileOrderProvider`에 의해 거부**되고 task manager는 아무것도 픽하지
+않는다(이는 의도된 동작이다).
 
-### 4.4 Order provider returns nut counts
+### 4.4 Order provider가 너트 개수를 반환한다
 
-In mock mode (no voice), this is verified by hardcoded counts in
-`task_manager.yaml` (`mock_order_*`). Trigger and watch:
+mock 모드(음성 없음)에서는 `task_manager.yaml`의 하드코딩된
+개수(`mock_order_*`)로 검증된다. 트리거하고 관찰한다.
 
 ```bash
 ros2 service call /task/start std_srvs/srv/Trigger "{}"
 ros2 topic echo /task/status
 ```
 
-In file mode, this is verified by the `/task/status` log lines after
-`/task/start`:
+file 모드에서는 `/task/start` 후 `/task/status` 로그 라인으로
+검증된다.
 
 ```
 [state] init
@@ -395,12 +389,12 @@ In file mode, this is verified by the `/task/status` log lines after
 ...
 ```
 
-The class names appearing here must match the JSON's `combo`.
+여기 나타나는 클래스 이름은 JSON의 `combo`와 일치해야 한다.
 
-> The `db` mode (`/db/get_nut_order`) is **Not Implemented** in this
-> repo. Setting `order_source:=db` will time out — skip this check.
+> `db` 모드(`/db/get_nut_order`)는 이 저장소에 **Not Implemented**다.
+> `order_source:=db`로 설정하면 timeout된다 — 이 점검은 건너뛴다.
 
-### 4.5 `latest_order.json` exists and is valid
+### 4.5 `latest_order.json`이 존재하고 유효하다
 
 ```bash
 ls -la ~/cobot2_ws/cobot_voice/output/latest_order.json
@@ -415,41 +409,40 @@ print('ok')
 "
 ```
 
-Expected: `ok`.
+기대값: `ok`.
 
 ---
 
-## 5. Task Manager Checks
+## 5. Task Manager 점검
 
-### 5.1 `/task/start` available
+### 5.1 `/task/start` 사용 가능
 
 ```bash
 ros2 service list | grep ^/task/start$
 ros2 service type /task/start            # std_srvs/srv/Trigger
 ```
 
-Expected: present, type matches.
+기대값: 존재, 타입 일치.
 
-### 5.2 Fake task accepted
+### 5.2 가짜 task 수락
 
-In mock mode (or file mode after a successful voice run):
+mock 모드(또는 음성 실행 성공 후 file 모드)에서:
 
 ```bash
 ros2 service call /task/start std_srvs/srv/Trigger "{}"
 ```
 
-Expected:
+기대값:
 
-- First call: `success=True message='task started'`.
-- Subsequent call **while the loop is still running**:
+- 첫 호출: `success=True message='task started'`.
+- **루프가 아직 실행 중일 때** 후속 호출:
   `success=False message='task already running'`.
 
-### 5.3 Invalid task rejected
+### 5.3 잘못된 task 거부
 
-In **file mode**, simulate a bad order and confirm the worker refuses
-it. The `FileOrderProvider` rejects when `success=false` or when the
-combo is empty, and tracks `request_id` to refuse replays of the same
-order.
+**file 모드**에서, 잘못된 주문을 시뮬레이션하고 worker가 이를 거부하는지
+확인한다. `FileOrderProvider`는 `success=false`이거나 combo가 비었을 때
+거부하며, 동일한 주문의 재실행을 막기 위해 `request_id`를 추적한다.
 
 ```bash
 # Stash the real one
@@ -480,16 +473,15 @@ ros2 topic echo /task/result --once
 cp /tmp/good_order.json ~/cobot2_ws/cobot_voice/output/latest_order.json
 ```
 
-Expected: the order is refused at fetch time with a `failure
-order_fetch_failed` (or comparable) message on `/task/result`. The
-robot does not move.
+기대값: 주문이 fetch 시점에 거부되며 `/task/result`에 `failure
+order_fetch_failed`(또는 동등한) 메시지가 나온다. 로봇은 움직이지 않는다.
 
-> **Needs verification**: the exact failure string emitted depends on
-> the `FileOrderProvider` exception path. Treat the absence of any
-> `[state] pick_and_place ...` line as the success signal for this
-> rejection check.
+> **검증 필요**: 방출되는 정확한 failure 문자열은
+> `FileOrderProvider`의 예외 경로에 따라 다르다. 이 거부 점검의 성공
+> 신호로는 어떠한 `[state] pick_and_place ...` 라인도 나타나지 않는
+> 것을 본다.
 
-### 5.4 State transitions visible
+### 5.4 상태 전이가 보인다
 
 ```bash
 ros2 topic echo /task/status
@@ -497,7 +489,7 @@ ros2 topic echo /task/status
 ros2 service call /task/start std_srvs/srv/Trigger "{}"
 ```
 
-Expected sequence (success path):
+기대 시퀀스(성공 경로):
 
 ```
 init
@@ -509,7 +501,7 @@ detect
 done
 ```
 
-Failure paths (must also be observed for completeness):
+실패 경로(완전성을 위해 반드시 관찰되어야 한다).
 
 ```
 aborted home_failed
@@ -519,131 +511,127 @@ aborted failure_code=<N>
 safety_stop
 ```
 
-### 5.5 Task result published
+### 5.5 Task 결과 게시
 
 ```bash
 ros2 topic echo /task/result --once
 ```
 
-Expected: a single line ending in `success counts={...} skipped=[...]`
-or `failure <reason>`. The result is published exactly **once** per
-task run.
+기대값: `success counts={...} skipped=[...]` 또는 `failure <reason>`로
+끝나는 단일 라인. 결과는 task 실행당 정확히 **한 번** 게시된다.
 
 ---
 
-## 6. Perception Checks
+## 6. Perception 점검
 
-### 6.1 Detection node running
+### 6.1 Detection 노드 실행 중
 
 ```bash
 ros2 node list | grep object_detection_node
 ros2 node info /object_detection_node
 ```
 
-Expected: exists; subscribed to `/camera/camera/color/image_raw`,
-publishing `/detection/objects`. The boot log line
-`Loading YOLO-OBB model: <path>` confirms the model resolved.
+기대값: 존재; `/camera/camera/color/image_raw`를 구독하고
+`/detection/objects`를 게시. 부팅 로그 라인
+`Loading YOLO-OBB model: <path>`이 모델 해결을 확인한다.
 
-If you are running fully mock (no camera), substitute
-`mock_perception_node`:
+완전한 mock(카메라 없음)으로 실행하는 경우
+`mock_perception_node`로 대체한다.
 
 ```bash
 ros2 run cobot_perception mock_perception_node
 ros2 node list | grep mock_perception_node
 ```
 
-### 6.2 `detect_once` service works
+### 6.2 `detect_once` 서비스 동작
 
 ```bash
 ros2 service call /perception/detect_once cobot_msgs/srv/DetectOnce "{}"
 ```
 
-Expected (real perception with a populated scene):
+기대값(채워진 장면이 있는 실제 perception):
 
 - `success: true`
-- `message: "transformed K/N detections"` where `K, N ≥ 0`.
-- `objects.objects` list (possibly empty if nothing is in the workspace).
+- `message: "transformed K/N detections"` 단, `K, N ≥ 0`.
+- `objects.objects` 리스트(워크스페이스에 아무것도 없으면 비어있을 수 있음).
 
-Expected failure modes (all return `success: false`):
+기대 실패 모드(모두 `success: false` 반환):
 
-- `"no detection received yet"` — `object_detection_node` not running
-  or no color frames yet.
-- `"no depth frame received yet"` — depth alignment missing.
-- `"no camera_info received yet"` — intrinsics not yet received.
-- `"tcp source error: ..."` — `tcp_source: service` and
-  `/robot/get_current_pose` is not responding.
+- `"no detection received yet"` — `object_detection_node`가 실행되지
+  않았거나 아직 컬러 프레임이 없음.
+- `"no depth frame received yet"` — depth 정렬 누락.
+- `"no camera_info received yet"` — intrinsics 미수신.
+- `"tcp source error: ..."` — `tcp_source: service`이고
+  `/robot/get_current_pose`가 응답하지 않음.
 
-If you used `mock_perception_node`, expect the hardcoded 8-object
-scene with all entries `transform_valid=true`.
+`mock_perception_node`를 사용했다면, 모든 항목이 `transform_valid=true`인
+하드코딩된 8-object 장면을 기대한다.
 
-### 6.3 Target has valid `class_name`
+### 6.3 타겟이 유효한 `class_name`을 가진다
 
-For each entry returned by `detect_once`:
+`detect_once`가 반환하는 각 항목에 대해:
 
-- `class_name ∈ {almond, cashew, pistachio, walnut}` — same vocabulary
-  as `cobot_object_detection/config/object_detection.yaml`'s
-  `class_names`.
+- `class_name ∈ {almond, cashew, pistachio, walnut}` —
+  `cobot_object_detection/config/object_detection.yaml`의 `class_names`와
+  동일한 어휘.
 
-Quick filter check in the response — every `objects.objects[*].class_name`
-must be in that set. The proposed schema's "nut_type" name corresponds
-to `class_name` in the actual `cobot_msgs/DetectedObject.msg`.
+응답에서 빠른 필터 점검 — 모든 `objects.objects[*].class_name`은 그
+집합 안에 있어야 한다. 제안된 스키마의 "nut_type" 이름은 실제
+`cobot_msgs/DetectedObject.msg`의 `class_name`에 해당한다.
 
-### 6.4 Target has valid base coordinate / `transform_valid`
+### 6.4 타겟이 유효한 base 좌표 / `transform_valid`를 가진다
 
-For every entry the task manager will accept (i.e. anything passed to
-`target_selector.choose_target`):
+task manager가 받아들일 모든 항목에 대해(즉,
+`target_selector.choose_target`에 전달되는 모든 것):
 
-- `transform_valid: true` — the transform was successfully applied.
-- `base_xyz.x`, `base_xyz.y`, `base_xyz.z` — non-zero, finite floats in
-  millimeters in the robot base frame.
-- `grasp_yaw` — finite radian value.
-- `short_axis_mm`, `long_axis_mm` — positive floats matching real nut
-  dimensions (rough range: 5–25 mm).
+- `transform_valid: true` — 변환이 성공적으로 적용됨.
+- `base_xyz.x`, `base_xyz.y`, `base_xyz.z` — 로봇 base 프레임에서
+  밀리미터 단위의 0이 아닌 유한 float.
+- `grasp_yaw` — 유한한 라디안 값.
+- `short_axis_mm`, `long_axis_mm` — 실제 너트 치수에 부합하는 양의
+  float(대략 범위: 5–25 mm).
 
-Spot-check sanity: a populated workspace scene should have multiple
-entries with `transform_valid=true` and `base_xyz` values inside the
-`task_manager.yaml` workspace box (`x ∈ [200, 700]`,
-`y ∈ [-300, 300]`, `z ∈ [40, 80]`).
+스팟 체크 sanity: 채워진 워크스페이스 장면은 `transform_valid=true`이고
+`base_xyz` 값이 `task_manager.yaml` 워크스페이스 박스(`x ∈ [200, 700]`,
+`y ∈ [-300, 300]`, `z ∈ [40, 80]`) 안에 있는 여러 항목을 가져야 한다.
 
-If every entry comes back `transform_valid: false`, see Run Manual
-§12.6.
+모든 항목이 `transform_valid: false`로 돌아온다면, Run Manual §12.6을 본다.
 
 ---
 
-## 7. Robot / Gripper Dry-Run Checks
+## 7. Robot / Gripper Dry-Run 점검
 
-Run these in **mock mode** (`motion_backend: mock`,
-`gripper_backend: mock` — the default `robot_control.yaml`).
+이들은 **mock 모드**에서 실행한다(`motion_backend: mock`,
+`gripper_backend: mock` — 기본 `robot_control.yaml`).
 
-### 7.1 Pick action receives target
+### 7.1 Pick 액션이 타겟을 받는다
 
 ```bash
 ros2 action info /robot/pick_and_place
 ```
 
-Expected: server node `/dsr01/robot_action_helper`; client includes
-`/task_manager_node` once a task has been started.
+기대값: 서버 노드 `/dsr01/robot_action_helper`; task가 시작되면
+클라이언트에 `/task_manager_node`가 포함된다.
 
-Send a dry-run target via the helper script:
+helper 스크립트로 dry-run 타겟을 보낸다.
 
 ```bash
 ~/cobot2_ws/scripts/pick_one.py cashew --dry-run
 ```
 
-Expected: prints the resolved goal (`base_xyz`, `grasp_yaw`,
-`short_axis_mm`, computed pre-grasp width) and exits **without**
-sending an action goal.
+기대값: 해결된 goal(`base_xyz`, `grasp_yaw`,
+`short_axis_mm`, 계산된 pre-grasp width)을 출력하고 액션 goal을 보내지
+**않고** 종료한다.
 
-### 7.2 Motion stages log correctly
+### 7.2 모션 단계가 올바르게 로그된다
 
-Without `--dry-run`, the action server walks all stages. Watch the
-launch terminal:
+`--dry-run` 없이 액션 서버는 모든 단계를 진행한다. launch 터미널을 본다.
 
 ```bash
 ~/cobot2_ws/scripts/pick_one.py cashew
 ```
 
-Expected stage feedback (mock backend completes each instantly):
+기대 단계 피드백(mock 백엔드는 각 단계를 즉시 완료):
 
 ```
 [stage] pre_grasp_width
@@ -657,63 +645,63 @@ Expected stage feedback (mock backend completes each instantly):
 [stage] home
 ```
 
-Action result: `success: True, failure_code: 0`.
+액션 결과: `success: True, failure_code: 0`.
 
-### 7.3 Gripper close/open sequence logs correctly
+### 7.3 그리퍼 close/open 시퀀스가 올바르게 로그된다
 
-In mock mode, the gripper backend prints debug logs from
-`gripper_controller.py`. Look for:
+mock 모드에서 그리퍼 백엔드는 `gripper_controller.py`의 디버그 로그를
+출력한다. 다음을 찾는다.
 
-- The `pre_grasp_width` stage triggers `move_to(...)` and waits.
-- The `grasp` stage triggers `close()` and `wait_until_idle`.
-- `verify_grip` calls `is_grip_detected()` (mock returns True).
-- The `place` stage triggers `open()` and `wait_until_idle`.
+- `pre_grasp_width` 단계가 `move_to(...)`를 트리거하고 대기한다.
+- `grasp` 단계가 `close()`와 `wait_until_idle`을 트리거한다.
+- `verify_grip`이 `is_grip_detected()`를 호출한다(mock은 True 반환).
+- `place` 단계가 `open()`과 `wait_until_idle`을 트리거한다.
 
-If `verify_grip` fails (returns False on the mock) — that should not
-happen unless code has changed; mock returns True by default. Treat a
-failure here as a code regression.
+`verify_grip`이 실패하면(mock에서 False 반환) — 코드가 변경되지
+않는 한 일어나서는 안 된다. mock은 기본적으로 True를 반환한다. 여기서의
+실패는 코드 회귀로 취급한다.
 
-### 7.4 No real movement occurs in dry-run
+### 7.4 dry-run에서 실제 모션이 발생하지 않는다
 
-Check that the **default** YAML is in use. The launch terminal should
-log:
+**기본** YAML이 사용 중인지 확인한다. launch 터미널은 다음을 로그해야
+한다.
 
 ```
 Using MOCK motion backend ...
 Using MOCK gripper backend ...
 ```
 
-…**not**:
+…**다음이 아님**:
 
 ```
 Initializing DSR_ROBOT2 ...
 Initializing Modbus RG2 ...
 ```
 
-If you see the latter, the **real** YAML was loaded by mistake — stop
-and re-launch. The robot will move on the next pick.
+후자가 보이면 **real** YAML이 잘못 로드된 것이다 — 멈추고
+다시 launch한다. 다음 픽에서 로봇이 움직일 것이다.
 
-Additionally, with `enable_dsr_bringup:=false`, no `dsr_*` topics
-should appear:
+추가로 `enable_dsr_bringup:=false`인 경우, `dsr_*` 토픽이 보이지
+않아야 한다.
 
 ```bash
 ros2 topic list | grep ^/dsr01/ || echo "no /dsr01/ topics — expected for mock-only"
 ```
 
-(Some `/dsr01/...` services exist because `robot_control_node` lives in
-that namespace, but **motor commands** are stubbed.)
+(`robot_control_node`가 그 네임스페이스에 있기 때문에 일부 `/dsr01/...`
+서비스가 존재하지만, **모터 명령**은 stub이다.)
 
 ---
 
-## 8. Conveyor Checks
+## 8. 컨베이어 점검
 
-Launch only the conveyor (real Arduino on `/dev/ttyACM0`):
+컨베이어만 launch한다(`/dev/ttyACM0`의 실제 Arduino).
 
 ```bash
 ros2 launch conveyor_controller conveyor_controller.launch.py
 ```
 
-Expected boot log:
+기대 부팅 로그:
 
 ```
 Connected to Arduino serial port /dev/ttyACM0 at 115200 baud
@@ -723,160 +711,159 @@ Place-ready trigger: one False->True edge on /conveyor/place_ready = one movemen
                      exact distance requires firmware step mode.
 ```
 
-### 8.1 `place_ready` edge triggers exactly once
+### 8.1 `place_ready` edge가 정확히 한 번만 트리거된다
 
-In one terminal, watch the conveyor log. In another:
+한 터미널에서 컨베이어 로그를 본다. 다른 터미널에서:
 
 ```bash
 ros2 topic pub --once /conveyor/place_ready std_msgs/msg/Bool "{data: true}"
 ```
 
-Expected immediately:
+즉시 기대값:
 
 ```
 [conveyor_start] command=R80 duration=5.00s (place_ready edge)
 ```
 
-After `auto_run_duration_sec` (default `5.0` s):
+`auto_run_duration_sec`(기본 `5.0` s) 후:
 
 ```
 [conveyor_stop]  command was R80, duration=5.00s elapsed
 ```
 
-Send `false` to reset the edge tracker, then `true` again to verify
-the **next** edge fires another single advance:
+edge 트래커를 리셋하기 위해 `false`를 보내고, 다시 `true`를 보내
+**다음** edge가 또 한 번의 단일 advance를 발생시키는지 검증한다.
 
 ```bash
 ros2 topic pub --once /conveyor/place_ready std_msgs/msg/Bool "{data: false}"
 ros2 topic pub --once /conveyor/place_ready std_msgs/msg/Bool "{data: true}"
 ```
 
-Expected: another `[conveyor_start] ... [conveyor_stop]` pair.
+기대값: 또 다른 `[conveyor_start] ... [conveyor_stop]` 쌍.
 
-### 8.2 Conveyor stops after expected duration
+### 8.2 컨베이어가 예상 시간 후 정지한다
 
-Time the gap between `[conveyor_start]` and `[conveyor_stop]` log
-lines — should match `auto_run_duration_sec` within ~100 ms. The
-`STOP` is sent by an internal one-shot `create_timer` callback.
+`[conveyor_start]`와 `[conveyor_stop]` 로그 라인 사이의 간격을
+측정한다 — `auto_run_duration_sec`와 약 100 ms 이내로 일치해야 한다.
+`STOP`은 내부 일회성 `create_timer` 콜백으로 전송된다.
 
-If you change the duration live:
+duration을 라이브로 변경하면:
 
 ```bash
 ros2 param set /conveyor_serial_node auto_run_duration_sec 2.0
 ```
 
-…the next edge should produce a 2-second run.
+…다음 edge는 2초 실행을 발생시켜야 한다.
 
-### 8.3 No repeated trigger without a new edge
+### 8.3 새로운 edge 없이 트리거가 반복되지 않는다
 
-Send `true` again **without** an intermediate `false`:
+중간 `false` **없이** `true`를 다시 보낸다.
 
 ```bash
 ros2 topic pub --once /conveyor/place_ready std_msgs/msg/Bool "{data: true}"
 ros2 topic pub --once /conveyor/place_ready std_msgs/msg/Bool "{data: true}"   # second message
 ```
 
-Expected: only the first message produces a start log; the second is a
-no-op (because `_last_place_ready` is already `True`). Confirm by
-counting `[conveyor_start]` lines.
+기대값: 첫 번째 메시지만 시작 로그를 만든다. 두 번째는 no-op이다
+(`_last_place_ready`가 이미 `True`이기 때문). `[conveyor_start]` 라인
+개수로 확인한다.
 
-A `true` that arrives **while a previous timed run is still active**
-should be logged and ignored:
+**이전의 timed 실행이 아직 활성화되어 있는 동안** 도착하는 `true`는
+로그되고 무시되어야 한다.
 
 ```
 Ignoring place_ready trigger while conveyor auto-run is active
 ```
 
-(That requires sending `false → true → true` quickly, all within the
-5 s window.)
+(이를 위해서는 5 s 윈도우 내에서 `false → true → true`를 빠르게
+보내야 한다.)
 
 ---
 
-## 9. Real-Hardware Preflight
+## 9. 실제 하드웨어 사전 점검
 
-Do not skip any of these. Each ❌ here means **stop**, no real motion.
+이들 중 어느 것도 건너뛰지 않는다. 여기서의 각 ❌는 **정지**, 실제 모션
+없음을 의미한다.
 
-The hardware-and-network items are also enumerated in
-`docs/03_run_manual.md` §2.4 / §7.1 — re-check both, but the canonical
-go/no-go gate is this section.
+하드웨어 및 네트워크 항목은 `docs/03_run_manual.md` §2.4 / §7.1에도
+열거되어 있다 — 둘 다 다시 점검하되, 정식 go/no-go 게이트는 이 섹션이다.
 
-- [ ] **Robot ping**: `ping -c 3 192.168.1.100` returns 0 % loss.
-- [ ] **Gripper ping**: `ping -c 3 192.168.1.1` returns 0 % loss.
-- [ ] **RealSense USB**: `lsusb | grep -i realsense` shows the device.
-- [ ] **RealSense stream alive**:
-  `ros2 topic hz /camera/camera/aligned_depth_to_color/image_raw` shows
-  ~30 Hz after the camera launch reaches `RealSense Node Is Up!`.
-- [ ] **Conveyor serial**: `ls /dev/ttyACM*` lists the port; current
-  user is in the `dialout` group (`groups | grep dialout`); the
-  conveyor launch reaches `Connected to Arduino serial port ...`.
-- [ ] **Calibration files**: `gripper2camera_npy` parameter in
-  `cobot_perception/config/perception.yaml` points at an existing
-  `T_gripper2camera.npy` (4×4 array). The perception startup log
-  includes `Loaded gripper2camera from <path>`.
-- [ ] **Pendant**: AUTO mode + Servo On + status indicator **white**.
-  (Red indicator → motion API silently no-ops.)
-- [ ] **E-stop within reach** of the operator.
-- [ ] **Workspace clear**: no fingers, cables, or tooling in the
-  approach / transit / return paths; conveyor belt clear.
-- [ ] **Pick offsets up to date**:
-  `cat ~/cobot2_ws/cobot_config/config/pick_offsets.yaml` matches the
-  most recent successful tuning.
-- [ ] **Real config selected**:
-  `config_robot_control:=...robot_control.real.yaml` is on the launch
-  command line; the launch terminal shows
-  `Initializing DSR_ROBOT2 ...` and
-  `Initializing Modbus RG2 at 192.168.1.1:502`.
-- [ ] **One-nut dry-run first**:
-  `~/cobot2_ws/scripts/pick_one.py <class> --dry-run` returns sensible
-  base coordinates **before** any non-dry-run command is issued (see
-  `docs/03_run_manual.md` §8).
-- [ ] **Mock dry-run passed today** — every item in §7 ticked off in
-  the same session.
+- [ ] **로봇 ping**: `ping -c 3 192.168.1.100`이 0 % 손실을 반환한다.
+- [ ] **그리퍼 ping**: `ping -c 3 192.168.1.1`이 0 % 손실을 반환한다.
+- [ ] **RealSense USB**: `lsusb | grep -i realsense`가 디바이스를 보여준다.
+- [ ] **RealSense 스트림 활성**:
+  카메라 launch가 `RealSense Node Is Up!`에 도달한 후
+  `ros2 topic hz /camera/camera/aligned_depth_to_color/image_raw`가
+  ~30 Hz를 보여준다.
+- [ ] **컨베이어 시리얼**: `ls /dev/ttyACM*`이 포트를 나열한다; 현재
+  사용자가 `dialout` 그룹에 있다(`groups | grep dialout`); 컨베이어
+  launch가 `Connected to Arduino serial port ...`에 도달한다.
+- [ ] **캘리브레이션 파일**:
+  `cobot_perception/config/perception.yaml`의 `gripper2camera_npy`
+  파라미터가 존재하는 `T_gripper2camera.npy`(4×4 배열)를 가리킨다.
+  Perception 시작 로그에 `Loaded gripper2camera from <path>`이
+  포함된다.
+- [ ] **펜던트**: AUTO 모드 + Servo On + 상태 인디케이터 **흰색**.
+  (빨간 인디케이터 → motion API가 조용히 no-op한다.)
+- [ ] **E-stop이 운전자 손이 닿는 거리**에 있다.
+- [ ] **워크스페이스 정리**: approach / transit / return 경로에
+  손가락, 케이블, 공구 없음; 컨베이어 벨트 정리.
+- [ ] **Pick offset 최신**:
+  `cat ~/cobot2_ws/cobot_config/config/pick_offsets.yaml`이 가장 최근의
+  성공한 튜닝과 일치한다.
+- [ ] **Real config 선택됨**:
+  `config_robot_control:=...robot_control.real.yaml`이 launch 명령줄에
+  있다; launch 터미널이 `Initializing DSR_ROBOT2 ...`와
+  `Initializing Modbus RG2 at 192.168.1.1:502`를 보여준다.
+- [ ] **단일 너트 dry-run 먼저**:
+  비-dry-run 명령이 실행되기 **전에**
+  `~/cobot2_ws/scripts/pick_one.py <class> --dry-run`이 합리적인 base
+  좌표를 반환한다(`docs/03_run_manual.md` §8 참조).
+- [ ] **오늘 mock dry-run 통과** — §7의 모든 항목이 동일 세션에서
+  체크됨.
 
 ---
 
-## 10. Acceptance Criteria
+## 10. 합격 기준
 
-The system is "ready for operation" only when **all** of the following
-pass in the same session:
+다음 모두가 동일 세션에서 통과할 때만 시스템은 "운용 준비됨"이다.
 
-- [ ] **Static checks (§2)** — `colcon build` is clean,
-  `colcon test` passes, all interfaces resolve, no
-  `command_parser_node` / `firebase_state_bridge` references remain
-  outside `docs/`.
-- [ ] **ROS graph (§3)** — every required node, topic, service, and
-  action listed in §3 is present.
-- [ ] **Voice pipeline (§4)** — text-mode and (where applicable)
-  microphone-mode produce a valid `latest_order.json` with `success:
-  true`. The recommended categories and intensity match the spoken
-  intent on at least one sample.
-- [ ] **Task manager (§5)** — `/task/start` responds; a valid order
-  drives the loop to `[state] done` with `/task/result` ending in
-  `success`; an invalid order is rejected without robot motion.
-- [ ] **Perception (§6)** — `detect_once` returns
-  `success=true` with at least one entry `transform_valid=true` whose
-  `base_xyz` lies inside the `task_manager.yaml` workspace box.
-- [ ] **Robot dry-run (§7)** — every pick stage logs in order, the
-  action returns `success=True, failure_code=0`, and the launch terminal
-  confirms MOCK backends in use.
-- [ ] **Conveyor (§8)** — exactly one `[conveyor_start]/[conveyor_stop]`
-  pair per `false→true` edge; held-`true` does not re-trigger.
-- [ ] **Real-hardware preflight (§9)** — every checkbox ticked.
-- [ ] **One-nut real test** — `~/cobot2_ws/scripts/pick_one.py <class>`
-  succeeds for the chosen class without cancellation, with the
-  return-pose place_ready edge firing the conveyor exactly once.
-- [ ] **Multi-nut task** — `~/cobot2_ws/scripts/voice_to_robot.py
-  --text "..."` (or microphone equivalent) drives the full loop to
-  `[state] done` with `/task/result success counts={...}`. Every
-  consumed nut produces exactly one conveyor advance.
-- [ ] **Status visibility** — `/task/status`, `/task/result`,
-  `/conveyor/place_ready` echo the expected messages; if Firebase is
-  enabled, the web UI shows `display_state: completed` and
-  `robot_state: task_done` at the end.
-- [ ] **No unsafe motion observed** — no collisions, no E-stop
-  invocations, no stages that exit on `failure_code` 1, 3, 4, or 5
-  during the multi-nut run.
+- [ ] **Static 점검 (§2)** — `colcon build`가 깨끗하고,
+  `colcon test`가 통과하며, 모든 인터페이스가 해결되고, `docs/` 외부에
+  `command_parser_node` / `firebase_state_bridge` 참조가 남아있지
+  않다.
+- [ ] **ROS 그래프 (§3)** — §3에 나열된 모든 필수 노드, 토픽, 서비스,
+  액션이 존재한다.
+- [ ] **음성 파이프라인 (§4)** — text 모드 및 (해당하는 경우)
+  마이크 모드가 `success: true`인 유효한 `latest_order.json`을
+  생성한다. 추천 카테고리와 intensity가 적어도 한 샘플에서 발화 의도와
+  일치한다.
+- [ ] **Task manager (§5)** — `/task/start`가 응답한다; 유효한 주문이
+  루프를 `[state] done`까지 구동하고 `/task/result`가 `success`로
+  끝난다; 잘못된 주문은 로봇 모션 없이 거부된다.
+- [ ] **Perception (§6)** — `detect_once`가 `success=true`를 반환하고,
+  `base_xyz`가 `task_manager.yaml` 워크스페이스 박스 안에 있고
+  `transform_valid=true`인 항목이 적어도 하나 있다.
+- [ ] **로봇 dry-run (§7)** — 모든 픽 단계가 순서대로 로그되고, 액션이
+  `success=True, failure_code=0`을 반환하며, launch 터미널이 MOCK
+  백엔드 사용을 확인한다.
+- [ ] **컨베이어 (§8)** — `false→true` edge당 정확히 한 쌍의
+  `[conveyor_start]/[conveyor_stop]`이 있다; 유지된 `true`는
+  재트리거하지 않는다.
+- [ ] **실제 하드웨어 사전 점검 (§9)** — 모든 체크박스 체크됨.
+- [ ] **단일 너트 실제 테스트** — `~/cobot2_ws/scripts/pick_one.py <class>`가
+  취소 없이 선택한 클래스에 대해 성공하며, 복귀 자세 place_ready edge가
+  컨베이어를 정확히 한 번 발화시킨다.
+- [ ] **다중 너트 task** — `~/cobot2_ws/scripts/voice_to_robot.py
+  --text "..."`(또는 마이크 동등물)이 전체 루프를 `[state] done`까지
+  구동하고 `/task/result success counts={...}`가 된다. 소비된 모든
+  너트가 정확히 한 번의 컨베이어 advance를 발생시킨다.
+- [ ] **상태 가시성** — `/task/status`, `/task/result`,
+  `/conveyor/place_ready`가 예상 메시지를 echo한다; Firebase가
+  활성화된 경우, 웹 UI가 끝에 `display_state: completed`와
+  `robot_state: task_done`을 보여준다.
+- [ ] **안전하지 않은 모션 관찰 없음** — 다중 너트 실행 동안 충돌 없음,
+  E-stop 발동 없음, `failure_code` 1, 3, 4, 또는 5로 종료되는 단계 없음.
 
-When any criterion fails, halt and route through the relevant
-troubleshooting section in `docs/03_run_manual.md` §12 before
-re-running.
+어떤 기준이라도 실패하면, 정지하고 재실행 전에
+`docs/03_run_manual.md` §12의 관련 트러블슈팅 섹션을 통해 라우팅한다.
