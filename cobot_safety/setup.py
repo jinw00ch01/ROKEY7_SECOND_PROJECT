@@ -15,7 +15,7 @@ setup(
     maintainer='choijinwoo',
     maintainer_email='choijinwoo@todo.todo',
     description='Safety manager for cobot system',
-    license='TODO: License declaration',
+    license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [

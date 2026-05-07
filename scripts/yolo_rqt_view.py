@@ -7,6 +7,10 @@ topic so it can be viewed in rqt_image_view. Does not interfere with
 the production object_detection_node pipeline.
 """
 
+import argparse
+import os
+import sys
+
 import rclpy
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy
@@ -14,10 +18,8 @@ from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 from ultralytics import YOLO
 
-WEIGHTS = (
-    "/home/choijinwoo/cobot_ws/src/cobot2/cobot_OD_obb_nano/"
-    "train_phase2_20260504_173049/weights/best.pt"
-)
+from cobot_object_detection.model_paths import resolve_model_path
+
 INPUT_TOPIC = "/camera/camera/color/image_raw"
 OUTPUT_TOPIC = "/yolo/annotated"
 CONF = 0.40
@@ -25,10 +27,10 @@ IOU = 0.50
 
 
 class YoloRqtView(Node):
-    def __init__(self):
+    def __init__(self, weights: str):
         super().__init__("yolo_rqt_view")
-        self.get_logger().info(f"Loading weights: {WEIGHTS}")
-        self.model = YOLO(WEIGHTS)
+        self.get_logger().info(f"Loading weights: {weights}")
+        self.model = YOLO(weights)
         self.bridge = CvBridge()
         self.busy = False
 
@@ -59,8 +61,26 @@ class YoloRqtView(Node):
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--weights",
+        default=os.environ.get("YOLO_WEIGHTS", ""),
+        help=(
+            "Path to YOLO weights. Empty defaults to packaged "
+            "cobot_object_detection/models/best.pt or the source-tree "
+            "fallback. Also reads YOLO_WEIGHTS env var."
+        ),
+    )
+    args = parser.parse_args()
+
+    try:
+        weights = resolve_model_path(args.weights)
+    except FileNotFoundError as exc:
+        print(f"yolo_rqt_view: {exc}", file=sys.stderr)
+        sys.exit(1)
+
     rclpy.init()
-    node = YoloRqtView()
+    node = YoloRqtView(weights)
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:

@@ -9,8 +9,12 @@ implementation in once the wiring story is finalized.
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Protocol
+
+
+_log = logging.getLogger(__name__)
 
 
 class GripperBackend(Protocol):
@@ -132,8 +136,8 @@ class ModbusRG2Backend:
     def shutdown(self) -> None:
         try:
             self._client.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.debug("RG2 modbus close failed: %s", exc)
 
 
 def make_gripper(backend: str, **kwargs) -> GripperBackend:

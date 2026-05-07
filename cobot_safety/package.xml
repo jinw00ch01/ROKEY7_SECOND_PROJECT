@@ -5,7 +5,7 @@
   <version>0.0.1</version>
   <description>Safety manager for cobot system</description>
   <maintainer email="choijinwoo@todo.todo">choijinwoo</maintainer>
-  <license>TODO: License declaration</license>
+  <license>Apache-2.0</license>
 
   <depend>rclpy</depend>
   <depend>std_msgs</depend>
