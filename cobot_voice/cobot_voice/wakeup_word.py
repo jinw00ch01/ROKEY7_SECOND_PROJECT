@@ -27,7 +27,7 @@ class WakeupWord:
         outputs = self.model.predict(audio_chunk, threshold=0.1)
         confidence = outputs[self.model_name]
         print("confidence: ", confidence)
-        if confidence > 0.3:
+        if confidence > 0.003:
             print("Wakeword detected!")
             return True
         return False

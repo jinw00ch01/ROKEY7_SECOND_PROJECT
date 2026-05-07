@@ -10,6 +10,9 @@ Usage:
     pick_all.py --order cashew,almond,...    # restrict / prioritize classes
     pick_all.py --max-failures 3             # stop after N consecutive failures
     pick_all.py --inter-pick-delay 0.5       # seconds to wait between rounds
+    pick_all.py --order-file /path/to/latest_order.json
+                                             # read combo from cobot_voice output;
+                                             # overrides --counts / --per-class
 
 Selection is round-robin: the eligible class with the fewest picks so far
 wins (ties broken by --order). This gives balanced picking even when stops
@@ -25,8 +28,10 @@ Each round:
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 import time
+from pathlib import Path
 from typing import Iterable, Optional
 
 import rclpy
@@ -38,9 +43,19 @@ from cobot_msgs.srv import DetectOnce
 
 
 CLASSES = ("cashew", "almond", "pistachio", "walnut")
-DEFAULT_RETURN_XYZ = (367.0, -150.0, 340.0)
+DEFAULT_RETURN_XYZ = (367.0, -150.0, 70.0)
 DEFAULT_RETURN_ZYZ = (168.0, 179.0, 168.0)
 DEFAULT_PRE_GRASP_MARGIN_MM = 15.0
+
+# Per-class fine-tune offset added to grasp z (mm). Negative = grip deeper
+# (good for nuts that slip). Positive = grip shallower (good if pressing
+# into table). Applied on top of perception z and --z-override.
+PER_CLASS_Z_OFFSET = {
+    "cashew": 0.0,
+    "almond": 0.0,
+    "pistachio": 0.0,
+    "walnut": -1.0,
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -66,6 +81,11 @@ def parse_args() -> argparse.Namespace:
                    help=f"Comma-separated class priority. Default: {','.join(CLASSES)}")
     p.add_argument("--detect-timeout", type=float, default=5.0)
     p.add_argument("--action-timeout", type=float, default=120.0)
+    p.add_argument("--order-file", default=None,
+                   help="Path to latest_order.json from cobot_voice. "
+                        "When given, derives counts from JSON 'combo' field. "
+                        "Refuses if success=false or combo empty. "
+                        "Overrides --counts and --per-class.")
     return p.parse_args()
 
 
@@ -89,6 +109,64 @@ def parse_counts(counts_str: str) -> dict[str, int]:
             raise ValueError(f"--counts entry {piece!r}: unknown class")
         out[cls] = n
     return out
+
+
+def parse_order_file(file_path: str) -> tuple[dict[str, int], dict]:
+    """Read a cobot_voice latest_order.json and extract per-class counts.
+
+    Returns (counts, metadata). Raises ValueError on any validation failure
+    so the caller can refuse to dispatch the robot.
+
+    Expected JSON shape (from cobot_voice/keyword_extractor.py):
+        {
+          "request_id": "...",
+          "recognized_text": "...",
+          "combo": [{"nut": "cashew", "count": 3}, ...],
+          "success": true,
+          ...
+        }
+    """
+    path = Path(file_path).expanduser()
+    if not path.is_file():
+        raise ValueError(f"order file not found: {path}")
+
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"order file is not valid JSON: {exc}") from exc
+
+    if not data.get("success", False):
+        raise ValueError(
+            "order success=false "
+            f"(text: {data.get('recognized_text', '')!r})"
+        )
+
+    combo = data.get("combo")
+    if not isinstance(combo, list) or not combo:
+        raise ValueError("order has empty or missing 'combo'")
+
+    counts: dict[str, int] = {}
+    for item in combo:
+        if not isinstance(item, dict):
+            continue
+        nut = item.get("nut")
+        try:
+            n = int(item.get("count", 0))
+        except (TypeError, ValueError):
+            continue
+        if nut not in CLASSES or n <= 0:
+            continue
+        counts[nut] = counts.get(nut, 0) + n
+
+    if not counts:
+        raise ValueError(f"order combo has no valid items: {combo!r}")
+
+    metadata = {
+        "request_id": str(data.get("request_id", "")),
+        "recognized_text": str(data.get("recognized_text", "")),
+        "intensity": str(data.get("intensity", "")),
+    }
+    return counts, metadata
 
 
 def build_target_counts(
@@ -214,13 +292,35 @@ def main() -> int:
         print(f"Unknown classes in --order: {bad}", file=sys.stderr)
         return 4
 
-    try:
-        explicit_counts = parse_counts(args.counts)
-    except ValueError as exc:
-        print(f"--counts: {exc}", file=sys.stderr)
-        return 4
+    if args.order_file:
+        if args.counts:
+            print(
+                "Cannot use --order-file together with --counts",
+                file=sys.stderr,
+            )
+            return 4
+        try:
+            explicit_counts, order_meta = parse_order_file(args.order_file)
+        except ValueError as exc:
+            print(f"--order-file: {exc}", file=sys.stderr)
+            return 4
+        per_class_arg = None  # order-file fully specifies counts
+        print(f"Order file : {args.order_file}")
+        if order_meta["request_id"]:
+            print(f"  request_id     : {order_meta['request_id']}")
+        if order_meta["recognized_text"]:
+            print(f"  recognized_text: {order_meta['recognized_text']!r}")
+        if order_meta["intensity"]:
+            print(f"  intensity      : {order_meta['intensity']}")
+    else:
+        try:
+            explicit_counts = parse_counts(args.counts)
+        except ValueError as exc:
+            print(f"--counts: {exc}", file=sys.stderr)
+            return 4
+        per_class_arg = args.per_class
 
-    targets = build_target_counts(order, args.per_class, explicit_counts)
+    targets = build_target_counts(order, per_class_arg, explicit_counts)
     total_target = sum(targets.values())
     print(f"Targets: {{ "
           + ", ".join(f"{c}={targets[c]}" for c in order)
@@ -280,6 +380,7 @@ def main() -> int:
                 if args.z_override is not None
                 else target.base_xyz.z
             )
+            z_cmd += PER_CLASS_Z_OFFSET.get(target.class_name, 0.0)
             print(f"  target: {target.class_name:9s} conf={target.confidence:.2f} "
                   f"base=({target.base_xyz.x:.1f}, {target.base_xyz.y:.1f}, "
                   f"{target.base_xyz.z:.1f}) -> z={z_cmd:.1f} "

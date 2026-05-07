@@ -11,9 +11,10 @@ Pipeline per /perception/detect_once call:
 
 TCP pose source is selectable:
   - "fixed"  : use fixed_tcp_xyz_mm + fixed_tcp_zyz_deg (Phase A standalone)
-  - other modes (topic / service) intentionally not implemented yet; the
-    parameter contract is in place so we can plug them in once
-    cobot_robot_control exposes them.
+  - "service": call cobot_robot_control's GetCurrentPose service
+              (param `tcp_service_name`, default `/robot/get_current_pose`)
+              to fetch the live TCP pose every detect_once. This is the
+              default once cobot_robot_control is up.
 """
 
 from __future__ import annotations

@@ -126,8 +126,6 @@ class RobotControlNode(Node):
         )
 
         # ----- ROS interfaces ------------------------------------------------
-        service_cb_group = ReentrantCallbackGroup()
-
         self._stop_event = threading.Event()
         self._busy_lock = threading.Lock()
 
@@ -164,17 +162,24 @@ class RobotControlNode(Node):
         )
         self._action_thread.start()
 
-        self._home_service = self.create_service(
+        # Home/stop services live on _action_node so DSR_ROBOT2's
+        # rclpy.spin_until_future_complete(g_node=main_node, future) calls
+        # don't run from a main-node executor thread (which causes a nested-
+        # spin deadlock on the second invocation). The action_node executor
+        # has 4 threads and proxies DSR_ROBOT2 traffic through the global
+        # executor used by spin_until_future_complete; pick_and_place has
+        # been running through this path without issues.
+        self._home_service = self._action_node.create_service(
             Trigger,
             str(self.get_parameter("home_service_name").value),
             self._handle_home,
-            callback_group=service_cb_group,
+            callback_group=action_cb_group,
         )
-        self._stop_service = self.create_service(
+        self._stop_service = self._action_node.create_service(
             Trigger,
             str(self.get_parameter("stop_service_name").value),
             self._handle_stop,
-            callback_group=service_cb_group,
+            callback_group=action_cb_group,
         )
         # Pose passthrough lives on a dedicated node + executor so that
         # DSR_ROBOT2 traffic during pick_and_place (which churns ros2 service
@@ -287,13 +292,16 @@ class RobotControlNode(Node):
     # ----- services ----------------------------------------------------------
 
     def _handle_home(self, _request, response):
+        self.get_logger().info("[home] handler entered")
         try:
             self._motion.move_joint(self._cfg.home_joints_deg)
             response.success = True
             response.message = "moved to home"
+            self.get_logger().info("[home] OK")
         except Exception as exc:  # noqa: BLE001
             response.success = False
             response.message = f"home failed: {exc}"
+            self.get_logger().error(f"[home] failed: {exc}")
         return response
 
     def _handle_stop(self, _request, response):

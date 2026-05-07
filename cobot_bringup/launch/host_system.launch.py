@@ -6,7 +6,13 @@ cobot_voice / cobot_policy are out of scope for this scenario.
 Launch args:
   config_task_manager       : path to cobot_task_manager yaml
   task_autostart            : "true"|"false". Set false to start the node
-                              with its worker idle so a tester can trigger it.
+                              with its worker idle so a tester can trigger it
+                              via /task/start.
+  order_source              : "mock"|"db"|"file". Overrides yaml. Set "file"
+                              to read cobot_voice's latest_order.json.
+  file_order_path           : Absolute path to latest_order.json. Required
+                              when order_source=file. Empty string means
+                              the yaml's value is used.
 """
 
 import os
@@ -27,6 +33,16 @@ def generate_launch_description() -> LaunchDescription:
             default_value=os.path.join(tm_share, "config", "task_manager.yaml"),
         ),
         DeclareLaunchArgument("task_autostart", default_value="true"),
+        DeclareLaunchArgument(
+            "order_source",
+            default_value="mock",
+            description="mock | db | file. Default mock.",
+        ),
+        DeclareLaunchArgument(
+            "file_order_path",
+            default_value="",
+            description="Absolute path to latest_order.json. Required when order_source=file.",
+        ),
     ]
 
     task_manager = Node(
@@ -36,7 +52,11 @@ def generate_launch_description() -> LaunchDescription:
         output="screen",
         parameters=[
             LaunchConfiguration("config_task_manager"),
-            {"autostart": LaunchConfiguration("task_autostart")},
+            {
+                "autostart": LaunchConfiguration("task_autostart"),
+                "order_source": LaunchConfiguration("order_source"),
+                "file_order_path": LaunchConfiguration("file_order_path"),
+            },
         ],
     )
 
