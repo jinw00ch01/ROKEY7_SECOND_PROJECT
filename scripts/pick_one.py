@@ -66,7 +66,13 @@ def select_target(detection, target_class):
     ]
     if not matches:
         return None
-    matches.sort(key=lambda o: o.confidence, reverse=True)
+    # Prefer the largest physical area (short * long in mm). Confidence is
+    # already filtered upstream by the OD conf_threshold; bigger nuts give
+    # the gripper a forgiving target. Use conf as tiebreaker.
+    matches.sort(
+        key=lambda o: (o.short_axis_mm * o.long_axis_mm, o.confidence),
+        reverse=True,
+    )
     return matches[0]
 
 
