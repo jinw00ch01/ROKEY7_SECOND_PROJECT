@@ -22,6 +22,7 @@ from rclpy.action import ActionServer, CancelResponse, GoalResponse
 from rclpy.callback_groups import MutuallyExclusiveCallbackGroup, ReentrantCallbackGroup
 from rclpy.executors import MultiThreadedExecutor, SingleThreadedExecutor
 from rclpy.node import Node
+from std_msgs.msg import Bool
 from std_srvs.srv import Trigger
 
 from cobot_msgs.action import PickAndPlace
@@ -64,6 +65,9 @@ class RobotControlNode(Node):
         self.declare_parameter("pose_service_name", "/robot/get_current_pose")
         self.declare_parameter("doosan_pose_service", "/dsr01/system/get_current_pose")
         self.declare_parameter("pose_passthrough_timeout_sec", 2.0)
+        self.declare_parameter("place_ready_topic", "/conveyor/place_ready")
+        self.declare_parameter("place_y_margin_mm", 3.0)
+        self.declare_parameter("place_ready_publish_period_sec", 0.1)
 
         # ----- backends ------------------------------------------------------
         motion_backend = str(self.get_parameter("motion_backend").value)
@@ -123,11 +127,24 @@ class RobotControlNode(Node):
             acceleration_slow=float(self.get_parameter("acceleration_slow").value),
             grip_settle_timeout_sec=float(self.get_parameter("grip_settle_timeout_sec").value),
             grasp_local_offset_xy_mm=list(self.get_parameter("grasp_local_offset_xy_mm").value),
+            place_y_margin_mm=float(self.get_parameter("place_y_margin_mm").value),
         )
 
         # ----- ROS interfaces ------------------------------------------------
         self._stop_event = threading.Event()
         self._busy_lock = threading.Lock()
+        self._place_ready_lock = threading.Lock()
+        self._place_ready = False
+
+        self._place_ready_pub = self.create_publisher(
+            Bool,
+            str(self.get_parameter("place_ready_topic").value),
+            10,
+        )
+        self._place_ready_timer = self.create_timer(
+            float(self.get_parameter("place_ready_publish_period_sec").value),
+            self._publish_place_ready,
+        )
 
         # Action server lives on a dedicated node + executor so its goal
         # acceptance and execution are not gated by traffic on the main
@@ -256,6 +273,9 @@ class RobotControlNode(Node):
                 goal_handle.publish_feedback(fb)
                 self.get_logger().info(f"[stage] {stage}")
 
+            def place_ready_cb(ready: bool, reason: str) -> None:
+                self._set_place_ready(ready, reason)
+
             def is_cancelled() -> bool:
                 return goal_handle.is_cancel_requested or self._stop_event.is_set()
 
@@ -273,6 +293,7 @@ class RobotControlNode(Node):
                 ],
                 pre_grasp_width_mm=float(goal.pre_grasp_width_mm),
                 feedback_cb=feedback_cb,
+                place_ready_cb=place_ready_cb,
                 is_cancelled=is_cancelled,
             )
 
@@ -287,6 +308,7 @@ class RobotControlNode(Node):
                 goal_handle.abort()
             return result_msg
         finally:
+            self._set_place_ready(False, "pick_and_place_finished")
             self._busy_lock.release()
 
     # ----- services ----------------------------------------------------------
@@ -306,6 +328,7 @@ class RobotControlNode(Node):
 
     def _handle_stop(self, _request, response):
         self._stop_event.set()
+        self._set_place_ready(False, "stop")
         try:
             self._gripper.open()
             wait_until_idle(self._gripper, timeout_sec=2.0)
@@ -315,6 +338,21 @@ class RobotControlNode(Node):
             response.success = False
             response.message = f"stop partial: {exc}"
         return response
+
+    def _set_place_ready(self, ready: bool, reason: str = "") -> None:
+        with self._place_ready_lock:
+            changed = self._place_ready != bool(ready)
+            self._place_ready = bool(ready)
+        if changed:
+            suffix = f" ({reason})" if reason else ""
+            self.get_logger().info(f"[place_ready] {self._place_ready}{suffix}")
+        self._publish_place_ready()
+
+    def _publish_place_ready(self) -> None:
+        msg = Bool()
+        with self._place_ready_lock:
+            msg.data = bool(self._place_ready)
+        self._place_ready_pub.publish(msg)
 
     def _handle_get_current_pose(self, _request, response):
         log = self.get_logger()

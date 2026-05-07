@@ -42,6 +42,7 @@ class MotionConfig:
     # gripper fingers (Doosan's TCP setting vs. the lecture hand-eye
     # calibration's assumed TCP). Rotated by grasp_yaw before adding.
     grasp_local_offset_xy_mm: Sequence[float] = field(default_factory=lambda: [0.0, 0.0])
+    place_y_margin_mm: float = 3.0
 
 
 def _apply_local_xy_offset(
@@ -81,6 +82,7 @@ def execute_pick_and_place(
     return_zyz_deg: Sequence[float],
     pre_grasp_width_mm: float = 0.0,
     feedback_cb: Optional[Callable[[str], None]] = None,
+    place_ready_cb: Optional[Callable[[bool, str], None]] = None,
     is_cancelled: Optional[Callable[[], bool]] = None,
 ):
     def cancelled() -> bool:
@@ -94,9 +96,24 @@ def execute_pick_and_place(
     above_return = point_zyz_to_posx(return_xyz_mm, return_zyz_deg, cfg.approach_offset_z_mm)
     place_pose = point_zyz_to_posx(return_xyz_mm, return_zyz_deg)
 
+    def set_place_ready(ready: bool, reason: str) -> None:
+        if place_ready_cb is not None:
+            try:
+                place_ready_cb(ready, reason)
+            except Exception:
+                pass
+
+    def is_tcp_at_place_y() -> bool:
+        current_pose = motion.get_current_pose()
+        if len(current_pose) < 2:
+            raise MotionError(f"unexpected current pose: {current_pose!r}")
+        return abs(float(current_pose[1]) - float(return_xyz_mm[1])) <= float(cfg.place_y_margin_mm)
+
     motion.set_speed(cfg.velocity, cfg.acceleration)
 
     try:
+        set_place_ready(False, "pick_and_place_started")
+
         # Pre-position the gripper width before motion starts so the close
         # travel during grasp is short (and we don't sweep neighbor nuts).
         if pre_grasp_width_mm > 0.0:
@@ -142,9 +159,17 @@ def execute_pick_and_place(
         if not wait_until_idle(gripper, timeout_sec=cfg.grip_settle_timeout_sec):
             return False, 3, "gripper open did not settle in time"
 
+        try:
+            at_place_y = is_tcp_at_place_y()
+        except Exception as exc:  # noqa: BLE001
+            set_place_ready(False, f"tcp_check_failed: {exc}")
+        else:
+            set_place_ready(at_place_y, "gripper_open_at_place" if at_place_y else "tcp_y_outside_place_margin")
+
         _safe_call(feedback_cb, "retreat")
         motion.set_speed(cfg.velocity, cfg.acceleration)
         motion.move_line(above_return)
+        set_place_ready(False, "retreat")
 
         _safe_call(feedback_cb, "home")
         motion.move_joint(cfg.home_joints_deg)
