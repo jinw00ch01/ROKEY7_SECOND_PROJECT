@@ -43,7 +43,7 @@ from cobot_msgs.srv import DetectOnce
 
 
 CLASSES = ("cashew", "almond", "pistachio", "walnut")
-DEFAULT_RETURN_XYZ = (367.0, -150.0, 70.0)
+DEFAULT_RETURN_XYZ = (367.0, -150.0, 90.0)
 DEFAULT_RETURN_ZYZ = (168.0, 179.0, 168.0)
 DEFAULT_PRE_GRASP_MARGIN_MM = 15.0
 

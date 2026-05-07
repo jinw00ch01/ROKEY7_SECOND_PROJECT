@@ -22,14 +22,16 @@
     workspace_xmax_mm: 700.0
     workspace_ymin_mm: -300.0
     workspace_ymax_mm: 300.0
-    workspace_zmin_mm: 0.0
-    workspace_zmax_mm: 500.0
+    # Tightened to nut height range (observed 61-66mm). Outliers from
+    # depth-dropout pixels (e.g., z=85+) get rejected so target_selector
+    # falls back to a sibling candidate of the same class.
+    workspace_zmin_mm: 40.0
+    workspace_zmax_mm: 80.0
 
     # Return pose: release happens at this z; the action's
     # approach_offset_z_mm (default 80mm) is applied above for transit.
-    # z=70 matches scripts/pick_all.py DEFAULT_RETURN_XYZ — keep in sync
-    # to avoid the gripper releasing nuts from a high (340mm) drop.
-    return_xyz_mm: [367.0, -150.0, 70.0]
+    # z=90 matches scripts/pick_all.py DEFAULT_RETURN_XYZ — keep in sync.
+    return_xyz_mm: [367.0, -150.0, 90.0]
     return_zyz_deg: [168.0, 179.0, 168.0]
 
     # Pre-grasp gripper width = short_axis_mm + margin, clamped to [min, max].

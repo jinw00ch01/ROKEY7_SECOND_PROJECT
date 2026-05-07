@@ -92,6 +92,15 @@ class TaskManagerNode(Node):
         self.declare_parameter("service_timeout_sec", 10.0)
         self.declare_parameter("action_timeout_sec", 60.0)
 
+        # Settle delay between a completed pick and the next detect_once.
+        # The pick action's "home" stage returns when the move command
+        # completes, but the camera buffer may still hold frames from
+        # mid-motion. Without this delay perception can read a stale
+        # detection paired with the post-motion TCP pose, projecting nuts
+        # onto wrong base coords (observed: y-shift of 50-100mm). Mirrors
+        # pick_all.py's --inter-pick-delay (default 0.5s).
+        self.declare_parameter("inter_pick_delay_sec", 0.5)
+
         self.declare_parameter("autostart", True)
 
         # Build order provider
@@ -144,6 +153,7 @@ class TaskManagerNode(Node):
         self._pre_grasp_max_mm = float(self.get_parameter("pre_grasp_max_mm").value)
         self._service_timeout_sec = float(self.get_parameter("service_timeout_sec").value)
         self._action_timeout_sec = float(self.get_parameter("action_timeout_sec").value)
+        self._inter_pick_delay_sec = float(self.get_parameter("inter_pick_delay_sec").value)
         self._per_class_z_offset_mm = {
             "almond": float(self.get_parameter("per_class_z_offset_almond_mm").value),
             "cashew": float(self.get_parameter("per_class_z_offset_cashew_mm").value),
@@ -376,6 +386,13 @@ class TaskManagerNode(Node):
                 self.get_logger().info(
                     f"{target_class} ok, remaining={order.counts[target_class]}"
                 )
+                # Settle before next detect: camera frames published mid-
+                # motion are still in perception_transform_node's buffer;
+                # without this delay the next detect_once pairs a stale
+                # detection with the post-motion TCP pose, projecting nuts
+                # to wrong base coords. Mirrors pick_all.py behavior.
+                if self._inter_pick_delay_sec > 0.0:
+                    time.sleep(self._inter_pick_delay_sec)
                 continue
 
             grasp_misses = order.record_grasp_failure(target_class)
