@@ -30,7 +30,7 @@ from cobot_msgs.srv import GetCurrentPose
 
 from .doosan_motion_client import make_motion_client
 from .gripper_controller import make_gripper, wait_until_idle
-from .motion_sequence import MotionConfig, execute_pick_and_place
+from .motion_sequence import MotionConfig, WorkspaceBounds, execute_pick_and_place
 
 
 class RobotControlNode(Node):
@@ -68,6 +68,13 @@ class RobotControlNode(Node):
         self.declare_parameter("place_ready_topic", "/conveyor/place_ready")
         self.declare_parameter("place_y_margin_mm", 3.0)
         self.declare_parameter("place_ready_publish_period_sec", 0.1)
+        self.declare_parameter("workspace_enabled", True)
+        self.declare_parameter("workspace_xmin_mm", 200.0)
+        self.declare_parameter("workspace_xmax_mm", 700.0)
+        self.declare_parameter("workspace_ymin_mm", -300.0)
+        self.declare_parameter("workspace_ymax_mm", 300.0)
+        self.declare_parameter("workspace_zmin_mm", 0.0)
+        self.declare_parameter("workspace_zmax_mm", 500.0)
 
         # ----- backends ------------------------------------------------------
         motion_backend = str(self.get_parameter("motion_backend").value)
@@ -128,6 +135,15 @@ class RobotControlNode(Node):
             grip_settle_timeout_sec=float(self.get_parameter("grip_settle_timeout_sec").value),
             grasp_local_offset_xy_mm=list(self.get_parameter("grasp_local_offset_xy_mm").value),
             place_y_margin_mm=float(self.get_parameter("place_y_margin_mm").value),
+            workspace_enabled=bool(self.get_parameter("workspace_enabled").value),
+            workspace_bounds=WorkspaceBounds(
+                xmin_mm=float(self.get_parameter("workspace_xmin_mm").value),
+                xmax_mm=float(self.get_parameter("workspace_xmax_mm").value),
+                ymin_mm=float(self.get_parameter("workspace_ymin_mm").value),
+                ymax_mm=float(self.get_parameter("workspace_ymax_mm").value),
+                zmin_mm=float(self.get_parameter("workspace_zmin_mm").value),
+                zmax_mm=float(self.get_parameter("workspace_zmax_mm").value),
+            ),
         )
 
         # ----- ROS interfaces ------------------------------------------------

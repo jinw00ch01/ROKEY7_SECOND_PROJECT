@@ -21,11 +21,41 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass, field
-from typing import Callable, List, Optional, Sequence
+from typing import Callable, List, Optional, Sequence, Tuple
 
 from .doosan_motion_client import MotionError
 from .gripper_controller import wait_until_idle
 from .pose_converter import point_yaw_to_posx, point_zyz_to_posx
+
+
+@dataclass
+class WorkspaceBounds:
+    xmin_mm: float = 200.0
+    xmax_mm: float = 700.0
+    ymin_mm: float = -300.0
+    ymax_mm: float = 300.0
+    zmin_mm: float = 0.0
+    zmax_mm: float = 500.0
+
+    def contains(self, xyz_mm: Sequence[float]) -> bool:
+        if len(xyz_mm) < 3:
+            return False
+        x, y, z = float(xyz_mm[0]), float(xyz_mm[1]), float(xyz_mm[2])
+        return (
+            math.isfinite(x)
+            and math.isfinite(y)
+            and math.isfinite(z)
+            and self.xmin_mm <= x <= self.xmax_mm
+            and self.ymin_mm <= y <= self.ymax_mm
+            and self.zmin_mm <= z <= self.zmax_mm
+        )
+
+    def describe(self) -> str:
+        return (
+            f"x=[{self.xmin_mm:.1f},{self.xmax_mm:.1f}], "
+            f"y=[{self.ymin_mm:.1f},{self.ymax_mm:.1f}], "
+            f"z=[{self.zmin_mm:.1f},{self.zmax_mm:.1f}]"
+        )
 
 
 @dataclass
@@ -43,6 +73,8 @@ class MotionConfig:
     # calibration's assumed TCP). Rotated by grasp_yaw before adding.
     grasp_local_offset_xy_mm: Sequence[float] = field(default_factory=lambda: [0.0, 0.0])
     place_y_margin_mm: float = 3.0
+    workspace_enabled: bool = True
+    workspace_bounds: WorkspaceBounds = field(default_factory=WorkspaceBounds)
 
 
 def _apply_local_xy_offset(
@@ -72,6 +104,24 @@ def _safe_call(cb: Optional[Callable[[str], None]], stage: str) -> None:
             pass
 
 
+def _workspace_violation(
+    cfg: MotionConfig,
+    waypoints: Sequence[Tuple[str, Sequence[float]]],
+) -> Optional[str]:
+    if not cfg.workspace_enabled:
+        return None
+
+    bounds = cfg.workspace_bounds
+    for name, xyz in waypoints:
+        if not bounds.contains(xyz):
+            point = list(xyz[:3]) if len(xyz) >= 3 else list(xyz)
+            return (
+                f"{name} outside workspace: {point!r}; "
+                f"allowed {bounds.describe()}"
+            )
+    return None
+
+
 def execute_pick_and_place(
     motion,
     gripper,
@@ -95,6 +145,19 @@ def execute_pick_and_place(
     grasp_pose = point_yaw_to_posx(grasp_xyz_corrected, grasp_yaw_rad)
     above_return = point_zyz_to_posx(return_xyz_mm, return_zyz_deg, cfg.approach_offset_z_mm)
     place_pose = point_zyz_to_posx(return_xyz_mm, return_zyz_deg)
+
+    violation = _workspace_violation(
+        cfg,
+        [
+            ("grasp_xyz", grasp_xyz_mm),
+            ("corrected_grasp_xyz", grasp_xyz_corrected),
+            ("approach_xyz", approach),
+            ("return_xyz", return_xyz_mm),
+            ("above_return_xyz", above_return),
+        ],
+    )
+    if violation is not None:
+        return False, 5, violation
 
     def set_place_ready(ready: bool, reason: str) -> None:
         if place_ready_cb is not None:
