@@ -19,6 +19,7 @@ TCP pose source is selectable:
 
 from __future__ import annotations
 
+from pathlib import Path
 import time
 from typing import List, Optional, Tuple
 
@@ -49,10 +50,7 @@ class PerceptionTransformNode(Node):
         super().__init__("perception_transform_node")
 
         # Hand-eye + intrinsics + depth params
-        self.declare_parameter(
-            "gripper2camera_npy",
-            "/home/choijinwoo/cobot_ws/src/cobot2/[lecture]pick_and_place_voice/resource/T_gripper2camera.npy",
-        )
+        self.declare_parameter("gripper2camera_npy", "")
         self.declare_parameter("min_depth_camera_mm", 50.0)
         self.declare_parameter("max_depth_camera_mm", 1500.0)
         self.declare_parameter("depth_offset_mm", -5.0)      # lecture's z bias
@@ -77,7 +75,14 @@ class PerceptionTransformNode(Node):
         self._intrinsics: Optional[dict] = None
 
         # Hand-eye matrix
-        npy_path = self.get_parameter("gripper2camera_npy").value
+        npy_path = str(self.get_parameter("gripper2camera_npy").value or "").strip()
+        if not npy_path:
+            raise RuntimeError(
+                "gripper2camera_npy is required. Provide the calibrated "
+                "T_gripper2camera.npy path in cobot_perception/config/perception.yaml "
+                "or as a ROS parameter override."
+            )
+        npy_path = str(Path(npy_path).expanduser())
         self._gripper2cam = load_gripper2camera(npy_path)
         self.get_logger().info(f"Loaded gripper2camera from {npy_path}")
 

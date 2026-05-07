@@ -3,6 +3,15 @@ from glob import glob
 import os
 
 package_name = 'cobot_object_detection'
+model_path = os.path.normpath(os.path.join(
+    os.path.dirname(__file__),
+    '..',
+    'cobot_OD_obb_nano',
+    'train_phase2_20260504_173049',
+    'weights',
+    'best.pt',
+))
+model_files = [model_path] if os.path.isfile(model_path) else []
 
 setup(
     name=package_name,
@@ -14,6 +23,7 @@ setup(
         ('share/' + package_name, ['package.xml']),
         (os.path.join('share', package_name, 'config'), glob('config/*.yaml')),
         (os.path.join('share', package_name, 'launch'), glob('launch/*.py')),
+        (os.path.join('share', package_name, 'models'), model_files),
     ],
     install_requires=['setuptools'],
     zip_safe=True,

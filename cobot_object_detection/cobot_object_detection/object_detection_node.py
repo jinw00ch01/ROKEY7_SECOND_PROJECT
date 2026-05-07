@@ -24,17 +24,14 @@ from cobot_msgs.msg import DetectedObject, DetectedObjectArray
 
 from .yolo_detector import YoloObbDetector
 from .detection_postprocess import DetectionAggregator
+from .model_paths import resolve_model_path
 
 
 class ObjectDetectionNode(Node):
     def __init__(self) -> None:
         super().__init__("object_detection_node")
 
-        self.declare_parameter(
-            "model_path",
-            "/home/choijinwoo/cobot_ws/src/cobot2/cobot_OD_obb_nano/"
-            "train_phase2_20260504_173049/weights/best.pt",
-        )
+        self.declare_parameter("model_path", "")
         self.declare_parameter(
             "class_names",
             ["almond", "cashew", "pistachio", "walnut"],
@@ -49,7 +46,7 @@ class ObjectDetectionNode(Node):
         self.declare_parameter("output_topic", "/detection/objects")
         self.declare_parameter("publish_when_empty", True)
 
-        model_path = self.get_parameter("model_path").value
+        model_path = resolve_model_path(self.get_parameter("model_path").value)
         class_names = list(self.get_parameter("class_names").value)
         imgsz = int(self.get_parameter("imgsz").value)
         conf = float(self.get_parameter("conf_threshold").value)

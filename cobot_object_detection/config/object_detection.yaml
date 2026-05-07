@@ -1,6 +1,8 @@
 /**:
   ros__parameters:
-    model_path: "/home/choijinwoo/cobot_ws/src/cobot2/cobot_OD_obb_nano/train_phase2_20260504_173049/weights/best.pt"
+    # Empty means: use the packaged models/best.pt, or the source-tree
+    # training output when running directly from the workspace.
+    model_path: ""
     class_names: ["almond", "cashew", "pistachio", "walnut"]
     imgsz: 800
     conf_threshold: 0.75
