@@ -40,6 +40,7 @@ def resolve_model_path(model_path: str) -> str:
 
     source_model = (
         Path(__file__).resolve().parents[2]
+        / "experiments"
         / "cobot_OD_obb_nano"
         / "train_phase2_20260504_173049"
         / "weights"

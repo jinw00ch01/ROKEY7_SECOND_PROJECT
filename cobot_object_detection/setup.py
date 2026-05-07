@@ -6,6 +6,7 @@ package_name = 'cobot_object_detection'
 model_path = os.path.normpath(os.path.join(
     os.path.dirname(__file__),
     '..',
+    'experiments',
     'cobot_OD_obb_nano',
     'train_phase2_20260504_173049',
     'weights',

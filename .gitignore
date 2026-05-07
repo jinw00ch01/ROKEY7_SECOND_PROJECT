@@ -20,15 +20,15 @@ log/
 
 # OD experiments: exclude images/caches/non-final weights, keep only the
 # final operational best.pt per experiment_03.md / experiment_04.md
-cobot_OD_obb_nano/**/*.jpg
-cobot_OD_obb_nano/**/*.png
-cobot_OD_obb_nano/**/*.cache
-cobot_OD_obb_nano/**/*.pt
-!cobot_OD_obb_nano/train_phase2_20260504_173049/weights/best.pt
+experiments/cobot_OD_obb_nano/**/*.jpg
+experiments/cobot_OD_obb_nano/**/*.png
+experiments/cobot_OD_obb_nano/**/*.cache
+experiments/cobot_OD_obb_nano/**/*.pt
+!experiments/cobot_OD_obb_nano/train_phase2_20260504_173049/weights/best.pt
 
-cobot_OD_obb_small/**/*.jpg
-cobot_OD_obb_small/**/*.png
-cobot_OD_obb_small/**/*.cache
-cobot_OD_obb_small/**/*.pt
-!cobot_OD_obb_small/train_phase2_20260505_203819/weights/best.pt
+experiments/cobot_OD_obb_small/**/*.jpg
+experiments/cobot_OD_obb_small/**/*.png
+experiments/cobot_OD_obb_small/**/*.cache
+experiments/cobot_OD_obb_small/**/*.pt
+!experiments/cobot_OD_obb_small/train_phase2_20260505_203819/weights/best.pt
 cobot_voice/output/
