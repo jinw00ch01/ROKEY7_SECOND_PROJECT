@@ -43,6 +43,8 @@ def generate_launch_description() -> LaunchDescription:
         # host
         "config_task_manager",
         "task_autostart",
+        "order_source",
+        "file_order_path",
     ]
 
     args = [
@@ -54,6 +56,16 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument("dsr_model", default_value="m0609"),
         DeclareLaunchArgument("dsr_namespace", default_value="dsr01"),
         DeclareLaunchArgument("task_autostart", default_value="true"),
+        DeclareLaunchArgument(
+            "order_source",
+            default_value="mock",
+            description="task_manager order source: mock | db | file",
+        ),
+        DeclareLaunchArgument(
+            "file_order_path",
+            default_value="",
+            description="Absolute path to latest_order.json (when order_source=file)",
+        ),
         DeclareLaunchArgument(
             "config_object_detection",
             default_value=os.path.join(
@@ -120,6 +132,8 @@ def generate_launch_description() -> LaunchDescription:
         launch_arguments=[
             forward("config_task_manager"),
             forward("task_autostart"),
+            forward("order_source"),
+            forward("file_order_path"),
         ],
     )
 

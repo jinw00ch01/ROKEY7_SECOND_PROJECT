@@ -1,0 +1,7 @@
+conveyor_serial_node:
+  ros__parameters:
+    port: /dev/ttyACM0
+    baudrate: 115200
+    serial_timeout: 1.0
+    arduino_reset_delay: 2.0
+    command_topic: /conveyor_cmd

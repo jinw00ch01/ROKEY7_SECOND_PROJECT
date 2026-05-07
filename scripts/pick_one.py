@@ -29,9 +29,19 @@ from cobot_msgs.srv import DetectOnce
 
 
 CLASSES = ("cashew", "almond", "pistachio", "walnut")
-DEFAULT_RETURN_XYZ = (367.0, -150.0, 340.0)
+DEFAULT_RETURN_XYZ = (367.0, -150.0, 70.0)
 DEFAULT_RETURN_ZYZ = (168.0, 179.0, 168.0)
 DEFAULT_PRE_GRASP_MARGIN_MM = 15.0
+
+# Per-class fine-tune offset added to grasp z (mm). Negative = grip deeper
+# (good for nuts that slip). Positive = grip shallower (good if pressing
+# into table). Applied on top of perception z and --z-override.
+PER_CLASS_Z_OFFSET = {
+    "cashew": 0.0,
+    "almond": 0.0,
+    "pistachio": 0.0,
+    "walnut": 0.0,
+}
 
 
 def parse_args() -> argparse.Namespace:
@@ -141,6 +151,7 @@ def main() -> int:
             if args.z_override is not None
             else target.base_xyz.z
         )
+        z_cmd += PER_CLASS_Z_OFFSET.get(target.class_name, 0.0)
 
         print(f"\n=== Target: {target.class_name} ===")
         print(f"  conf         : {target.confidence:.3f}")

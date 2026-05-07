@@ -1,15 +1,21 @@
 """Order book for pending nut picks.
 
-Tracks per-class remaining counts plus retry/skip bookkeeping. Two providers
+Tracks per-class remaining counts plus retry/skip bookkeeping. Three providers
 share the `OrderBook` data class:
   - MockOrderProvider returns a fixed dict (Phase A test setup: 2 of each)
-  - DBOrderProvider calls cobot_msgs/srv/GetNutOrder (Phase B)
+  - DBOrderProvider calls cobot_msgs/srv/GetNutOrder (Phase B, server pending)
+  - FileOrderProvider reads cobot_voice's latest_order.json (Phase A')
 """
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Dict, Iterable, Optional, Protocol
+
+
+_NUT_CLASSES = frozenset({"almond", "cashew", "pistachio", "walnut"})
 
 
 @dataclass
@@ -114,3 +120,71 @@ class DBOrderProvider:
             "pistachio": int(resp.pistachio),
             "walnut": int(resp.walnut),
         })
+
+
+class FileOrderProvider:
+    """Read a cobot_voice latest_order.json and convert to OrderBook.
+
+    Contract (matches cobot_voice/keyword_extractor.py):
+        {
+          "request_id": "...",
+          "recognized_text": "...",
+          "combo": [{"nut": "cashew", "count": 3}, ...],
+          "success": true,
+          ...
+        }
+
+    Refuses if success=false or combo is empty so a failed STT/recognition
+    does not trigger the robot. Tracks request_id to avoid replaying the
+    same order twice — the second fetch() with the same id raises until a
+    new file (different request_id) appears.
+    """
+
+    def __init__(self, file_path: str, require_success: bool = True) -> None:
+        self._path = Path(file_path).expanduser()
+        self._require_success = bool(require_success)
+        self._last_request_id: Optional[str] = None
+
+    def fetch(self) -> OrderBook:
+        if not self._path.is_file():
+            raise RuntimeError(f"order file not found: {self._path}")
+        try:
+            data = json.loads(self._path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(f"order file is not valid JSON: {exc}") from exc
+
+        if self._require_success and not data.get("success", False):
+            raise RuntimeError(
+                f"order success=false (text: {data.get('recognized_text', '')!r})"
+            )
+
+        request_id = str(data.get("request_id", ""))
+        if request_id and request_id == self._last_request_id:
+            raise RuntimeError(
+                f"order request_id {request_id!r} already processed; "
+                "save a new latest_order.json before re-fetching"
+            )
+
+        combo = data.get("combo")
+        if not isinstance(combo, list) or not combo:
+            raise RuntimeError("order has empty or missing 'combo'")
+
+        counts: Dict[str, int] = {}
+        for item in combo:
+            if not isinstance(item, dict):
+                continue
+            nut = item.get("nut")
+            try:
+                n = int(item.get("count", 0))
+            except (TypeError, ValueError):
+                continue
+            if nut not in _NUT_CLASSES or n <= 0:
+                continue
+            counts[nut] = counts.get(nut, 0) + n
+
+        if not counts:
+            raise RuntimeError(f"order combo has no valid items: {combo!r}")
+
+        if request_id:
+            self._last_request_id = request_id
+        return OrderBook(counts=counts)

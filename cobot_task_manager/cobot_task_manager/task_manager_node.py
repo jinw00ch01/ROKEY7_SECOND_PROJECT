@@ -30,7 +30,7 @@ from std_srvs.srv import Trigger
 from cobot_msgs.action import PickAndPlace
 from cobot_msgs.srv import DetectOnce
 
-from .order_provider import DBOrderProvider, MockOrderProvider, OrderBook
+from .order_provider import DBOrderProvider, FileOrderProvider, MockOrderProvider, OrderBook
 from .retry_policy import FailureAction, RetryPolicy
 from .target_selector import WorkspaceBox, choose_target
 from .task_state import TaskState
@@ -41,12 +41,15 @@ class TaskManagerNode(Node):
         super().__init__("task_manager_node")
 
         # Parameters
-        self.declare_parameter("order_source", "mock")          # mock | db
+        self.declare_parameter("order_source", "mock")          # mock | db | file
         self.declare_parameter("mock_order_almond", 2)
         self.declare_parameter("mock_order_cashew", 2)
         self.declare_parameter("mock_order_pistachio", 2)
         self.declare_parameter("mock_order_walnut", 2)
         self.declare_parameter("db_service_name", "/db/get_nut_order")
+        # FileOrderProvider: reads cobot_voice/output/latest_order.json
+        self.declare_parameter("file_order_path", "")
+        self.declare_parameter("file_order_require_success", True)
 
         self.declare_parameter(
             "class_priority",
@@ -71,6 +74,14 @@ class TaskManagerNode(Node):
         self.declare_parameter("pre_grasp_margin_mm", 8.0)
         self.declare_parameter("pre_grasp_min_mm", 15.0)
         self.declare_parameter("pre_grasp_max_mm", 80.0)
+
+        # Per-class fine-tune offset added to grasp_xyz.z (mm). Negative =
+        # grip deeper (good for nuts that slip). Mirrors PER_CLASS_Z_OFFSET
+        # in scripts/pick_all.py so both code paths yield identical motion.
+        self.declare_parameter("per_class_z_offset_almond_mm", 0.0)
+        self.declare_parameter("per_class_z_offset_cashew_mm", 0.0)
+        self.declare_parameter("per_class_z_offset_pistachio_mm", 0.0)
+        self.declare_parameter("per_class_z_offset_walnut_mm", -1.0)
 
         self.declare_parameter("perception_service_name", "/perception/detect_once")
         self.declare_parameter("pick_action_name", "/robot/pick_and_place")
@@ -98,6 +109,19 @@ class TaskManagerNode(Node):
                 service_name=str(self.get_parameter("db_service_name").value),
                 timeout_sec=float(self.get_parameter("service_timeout_sec").value),
             )
+        elif order_source == "file":
+            file_path = str(self.get_parameter("file_order_path").value)
+            if not file_path:
+                raise ValueError(
+                    "order_source='file' requires file_order_path parameter"
+                )
+            self._order_provider = FileOrderProvider(
+                file_path=file_path,
+                require_success=bool(
+                    self.get_parameter("file_order_require_success").value
+                ),
+            )
+            self.get_logger().info(f"FileOrderProvider reading {file_path}")
         else:
             raise ValueError(f"unknown order_source={order_source!r}")
 
@@ -120,6 +144,12 @@ class TaskManagerNode(Node):
         self._pre_grasp_max_mm = float(self.get_parameter("pre_grasp_max_mm").value)
         self._service_timeout_sec = float(self.get_parameter("service_timeout_sec").value)
         self._action_timeout_sec = float(self.get_parameter("action_timeout_sec").value)
+        self._per_class_z_offset_mm = {
+            "almond": float(self.get_parameter("per_class_z_offset_almond_mm").value),
+            "cashew": float(self.get_parameter("per_class_z_offset_cashew_mm").value),
+            "pistachio": float(self.get_parameter("per_class_z_offset_pistachio_mm").value),
+            "walnut": float(self.get_parameter("per_class_z_offset_walnut_mm").value),
+        }
 
         self._retry = RetryPolicy(
             max_detect_misses=int(self.get_parameter("max_detect_misses").value),
@@ -152,8 +182,27 @@ class TaskManagerNode(Node):
         self._stop_event = threading.Event()
         self._worker: Optional[threading.Thread] = None
 
+        # Service to trigger the worker manually (when autostart=False).
+        # Useful when downstream nodes (perception YOLO load, camera) need
+        # time to come up before the order loop should fire its first
+        # detect_once. A caller (e.g., voice_order_flow) waits for the
+        # system to be ready, then calls /task/start.
+        self._start_service = self.create_service(
+            Trigger, "/task/start", self._handle_start, callback_group=cb_group
+        )
+
         if bool(self.get_parameter("autostart").value):
             self.start_worker()
+
+    def _handle_start(self, _req, resp):
+        if self._worker is not None and self._worker.is_alive():
+            resp.success = False
+            resp.message = "task already running"
+        else:
+            self.start_worker()
+            resp.success = True
+            resp.message = "task started"
+        return resp
 
     # ----- worker control ------------------------------------------------
 
@@ -234,7 +283,7 @@ class TaskManagerNode(Node):
         goal.target_class = target_class
         goal.grasp_xyz.x = float(candidate.base_xyz.x)
         goal.grasp_xyz.y = float(candidate.base_xyz.y)
-        goal.grasp_xyz.z = float(candidate.base_xyz.z)
+        goal.grasp_xyz.z = float(candidate.base_xyz.z) + self._per_class_z_offset_mm.get(target_class, 0.0)
         goal.grasp_yaw = float(candidate.grasp_yaw)
         goal.pre_grasp_width_mm = float(pre_grasp_width_mm)
         goal.return_xyz.x = float(return_xyz[0])

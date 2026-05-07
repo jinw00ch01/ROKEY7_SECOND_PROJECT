@@ -1,12 +1,16 @@
 /**:
   ros__parameters:
     # Order source
-    order_source: "mock"        # mock | db
+    order_source: "mock"        # mock | db | file
     mock_order_almond: 2
     mock_order_cashew: 2
     mock_order_pistachio: 2
     mock_order_walnut: 2
     db_service_name: "/db/get_nut_order"
+    # FileOrderProvider reads cobot_voice's latest_order.json. Empty path
+    # forces caller to provide one explicitly via launch arg or override.
+    file_order_path: ""
+    file_order_require_success: true
 
     # Selection priority within the order book
     class_priority: ["almond", "cashew", "pistachio", "walnut"]
@@ -21,9 +25,11 @@
     workspace_zmin_mm: 0.0
     workspace_zmax_mm: 500.0
 
-    # Return pose (measured 2026-05-06): release happens at this z; the
-    # action's approach_offset_z_mm (default 80mm) is applied above for transit.
-    return_xyz_mm: [367.0, -150.0, 340.0]
+    # Return pose: release happens at this z; the action's
+    # approach_offset_z_mm (default 80mm) is applied above for transit.
+    # z=70 matches scripts/pick_all.py DEFAULT_RETURN_XYZ — keep in sync
+    # to avoid the gripper releasing nuts from a high (340mm) drop.
+    return_xyz_mm: [367.0, -150.0, 70.0]
     return_zyz_deg: [168.0, 179.0, 168.0]
 
     # Pre-grasp gripper width = short_axis_mm + margin, clamped to [min, max].
@@ -31,6 +37,14 @@
     pre_grasp_margin_mm: 8.0
     pre_grasp_min_mm: 15.0
     pre_grasp_max_mm: 80.0
+
+    # Per-class fine-tune offset added to grasp_xyz.z (mm). Negative = deeper
+    # grip (helps slipping nuts). Keep in sync with PER_CLASS_Z_OFFSET in
+    # scripts/pick_all.py and pick_one.py.
+    per_class_z_offset_almond_mm: 0.0
+    per_class_z_offset_cashew_mm: 0.0
+    per_class_z_offset_pistachio_mm: 0.0
+    per_class_z_offset_walnut_mm: -1.0
 
     # ROS interfaces
     perception_service_name: "/perception/detect_once"
