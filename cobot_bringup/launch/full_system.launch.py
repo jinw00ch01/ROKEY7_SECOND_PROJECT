@@ -9,9 +9,8 @@ All toggles flow down to the sub-launches via launch_arguments. Examples:
 # Phase A' real-mode entry (with both hardware)
   ros2 launch cobot_bringup full_system.launch.py \\
       enable_realsense:=true enable_dsr_bringup:=true \\
-      dsr_mode:=real dsr_host:=192.168.137.100
-  # plus override yaml backends:
-  #   cobot_robot_control: motion_backend=real, gripper_backend=modbus
+      dsr_mode:=real dsr_host:=192.168.137.100 \\
+      config_robot_control:=<share>/cobot_robot_control/config/robot_control.real.yaml
   #   cobot_perception:    tcp_source=service (once implemented)
 """
 

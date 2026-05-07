@@ -3,7 +3,8 @@
 dsr_bringup2 is included so the Doosan TCP/IP communication is established
 before our DSR_ROBOT2 wrapper imports. With `enable_dsr_bringup:=false`
 (the default for mock testing) we just launch our node and skip Doosan
-entirely; the cobot_robot_control yaml should set `motion_backend: mock`.
+entirely. The default cobot_robot_control yaml uses mock backends; use
+robot_control.real.yaml only with `enable_dsr_bringup:=true` and real hardware.
 
 Launch args:
   enable_dsr_bringup        : "true"|"false"
@@ -13,6 +14,7 @@ Launch args:
   dsr_model                 : robot model (default m0609)
   dsr_namespace             : ROS2 namespace (default dsr01)
   config_robot_control      : path to cobot_robot_control yaml
+                              default is mock-safe robot_control.yaml
 """
 
 import os
