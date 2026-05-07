@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   YOLO-OBB detection을 슬라이딩 윈도우(multi_frame_window_sec)로 모아 융합하는 모듈.
+#   단일 프레임 노이즈(잘못된 confidence, OBB 흔들림)를 완화하기 위해 클래스별로
+#   중심점 거리(cluster_distance_threshold_px) 기반 클러스터링을 수행한다.
+#   클러스터 내 cx,cy,w,h는 median, theta는 주기 pi의 circular mean,
+#   confidence는 최댓값을 채택하여 호출측 게이트 의미를 보존한다.
 """Sliding-window aggregation for YOLO-OBB detections.
 
 Buffers per-frame detections inside a fixed time window and fuses them into
@@ -63,6 +69,7 @@ class DetectionAggregator:
                 for cluster in clusters:
                     cx_mean = float(np.mean([m.cx for m in cluster]))
                     cy_mean = float(np.mean([m.cy for m in cluster]))
+                    # 중심점 Euclidean 거리가 임계값 이내면 같은 인스턴스로 본다.
                     if (d.cx - cx_mean) ** 2 + (d.cy - cy_mean) ** 2 <= self._cluster_dist ** 2:
                         cluster.append(d)
                         placed = True

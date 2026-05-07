@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   너트 pick-and-place 루프의 최상위 오케스트레이터 노드이다.
+#   detect_once 서비스로 인지를 받아 target_selector로 후보를 고르고
+#   /robot/pick_and_place 액션을 디스패치한다. 실제 루프는 worker thread에서
+#   돌리고, executor는 서비스/구독만 처리하도록 분리해 future 대기로 인한
+#   freeze를 막는다. order_source 파라미터로 mock/db/file provider를 선택한다.
 """Top-level orchestrator for the nut pick-and-place loop.
 
 Calls /perception/detect_once for each detection cycle, picks the best
@@ -103,6 +109,8 @@ class TaskManagerNode(Node):
 
         self.declare_parameter("autostart", True)
 
+        # worker thread 종료 신호용 Event. _await_future polling 루프에서도
+        # 매 0.05s마다 검사하여 안전하게 빠져나오게 한다.
         self._stop_event = threading.Event()
         self._worker: Optional[threading.Thread] = None
 
@@ -176,6 +184,9 @@ class TaskManagerNode(Node):
         )
 
         # ROS interfaces
+        # ReentrantCallbackGroup: 서비스/액션 콜백을 동시에 처리 가능하게 한다.
+        # MultiThreadedExecutor와 결합해 worker thread에서 future를 polling하는
+        # 동안에도 다른 콜백(예: /task/start 서비스)이 막히지 않게 한다.
         cb_group = ReentrantCallbackGroup()
         self._detect_client = self.create_client(
             DetectOnce,
@@ -278,6 +289,11 @@ class TaskManagerNode(Node):
         return resp.objects
 
     def _await_future(self, future, timeout_sec: float) -> bool:
+        # done-callback 대신 polling을 쓰는 이유:
+        # worker thread에서 spin_until_future_complete를 호출하면 executor와
+        # 충돌(이미 spin 중이라 reentrancy 문제)이 생기므로, executor는 main
+        # thread에서 돌리고 worker는 주기적으로 future.done()만 검사한다.
+        # stop_event 검사도 함께 수행해 종료 신호에 즉시 반응한다.
         deadline = time.time() + timeout_sec
         while time.time() < deadline and not future.done():
             if self._stop_event.is_set():
@@ -291,6 +307,10 @@ class TaskManagerNode(Node):
             return None
 
         # Pre-grasp width: short axis + margin, clamped. <=0 disables pre-position.
+        # OBB의 짧은 축(너트 폭)에 margin을 더해 pre-grasp width를 산출한다.
+        # min/max로 clamp해 그리퍼 물리 한계와 충돌을 방지한다. short_axis가
+        # 0이거나 margin이 음수면 0으로 두어 액션 서버가 pre-position 단계를
+        # 건너뛰도록 한다.
         pre_grasp_width_mm = 0.0
         if candidate.short_axis_mm > 0.0 and self._pre_grasp_margin_mm >= 0.0:
             pre_grasp_width_mm = candidate.short_axis_mm + self._pre_grasp_margin_mm
@@ -409,6 +429,9 @@ class TaskManagerNode(Node):
                     time.sleep(self._inter_pick_delay_sec)
                 continue
 
+            # failure_code 매핑: 2=grasp_not_detected -> RETRY_PICK 또는
+            # SKIP_CLASS, 3=motion / 5=workspace / 1=approach -> ABORT,
+            # 4=safety_stop -> ABORT (자세한 정책은 retry_policy.py 참고).
             grasp_misses = order.record_grasp_failure(target_class)
             decision = self._retry.on_action_failure(int(result.failure_code), grasp_misses)
             self.get_logger().warn(
@@ -436,6 +459,11 @@ def main(args=None) -> None:
     node: Optional[TaskManagerNode] = None
     try:
         node = TaskManagerNode()
+        # MultiThreadedExecutor를 쓰는 이유: worker thread가 future를 polling
+        # 하는 동안에도 ReentrantCallbackGroup의 다른 콜백(서비스/액션 응답,
+        # /task/start 트리거 등)이 별도 thread에서 동시에 디스패치되어야 한다.
+        # SingleThreadedExecutor면 worker가 sleep 중일 때 콜백이 막혀 future가
+        # 영원히 done이 되지 않는다.
         executor = MultiThreadedExecutor()
         executor.add_node(node)
         try:

@@ -1,3 +1,8 @@
+# 한국어 요약:
+#   현재 target class에 대해 최적 detection을 고르는 모듈이다.
+#   class/conf/workspace/depth 필터를 차례로 적용한 뒤 OBB 면적 내림차순,
+#   동률이면 confidence로 정렬해 첫 번째 후보를 반환한다.
+#   면적 우선 정책의 근거는 _choose_target 본문 주석 참고.
 """Pick the best detection for the current target class.
 
 Policy (matches implementation_plan.md v2 §4.2):
@@ -50,6 +55,11 @@ def choose_target(
     if not candidates:
         return None
 
+    # 정렬 우선순위: area > confidence.
+    # 면적이 큰 detection은 (1) 카메라에 더 잘 보이고 (2) 가려지지 않은
+    # 단일 너트일 가능성이 높아 그리퍼가 안정적으로 잡을 수 있다.
+    # confidence는 YOLO score인데 작은/부분 가림 객체에서도 종종 높게 나오므로
+    # 면적을 1차 키로 두고 동률 처리에만 사용한다.
     def sort_key(d):
         return (d.width * d.height, d.confidence)
 

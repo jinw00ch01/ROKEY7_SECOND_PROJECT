@@ -1,3 +1,7 @@
+# 한국어 요약:
+#   OpenAI Whisper API를 호출해 음성을 텍스트로 변환하는 STT 래퍼.
+#   sounddevice로 5초간 16kHz / mono / int16 PCM을 녹음하는데, 이는 Whisper의
+#   권장 입력 포맷에 맞춘 값이다. 임시 wav 파일로 저장 후 transcriptions API에 전달한다.
 from openai import OpenAI
 import sounddevice as sd
 import scipy.io.wavfile as wav
@@ -7,6 +11,7 @@ import tempfile
 class STT:
     def __init__(self, openai_api_key):
         self.client = OpenAI(api_key=openai_api_key)
+        # 5초 / 16kHz / mono / int16: Whisper API 권장 포맷에 맞춘 가정.
         self.duration = 5  # seconds
         self.samplerate = 16000  # Whisper prefers 16kHz
 

@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   Firestore /robot_session/current 문서를 갱신하는 헬퍼 모듈. 음성 흐름 표시용
+#   display_state 필드와 로봇 진행용 robot_state 필드를 분리하여 web UI가 둘을
+#   독립적으로 관찰할 수 있게 한다. 백그라운드 스레드와 큐(_UPDATE_QUEUE)를 통해
+#   비동기로 write를 수행하고, Firebase 초기화 실패 시 _FIREBASE_UNAVAILABLE
+#   플래그로 silent no-op 처리한다. category에 따라 theme(색상 세트)을 매핑한다.
 import logging
 import os
 import queue
@@ -12,6 +18,7 @@ logger.addHandler(logging.NullHandler())
 SESSION_COLLECTION = "robot_session"
 SESSION_DOCUMENT = "current"
 
+# 음성 흐름(voice flow) 단계 표시용 상태 집합. 사용자가 보는 대화 진행을 의미.
 DISPLAY_STATES = {
     "idle",
     "wake_detected",
@@ -54,6 +61,7 @@ ERROR_THEME = {
     "accent_color": "#E54848",
 }
 
+# category(피로/혈당/다이어트/집중)별 색상 세트 매핑. web UI 테마를 일관되게 결정.
 THEMES_BY_CATEGORY = {
     "fatigue": {
         "primary_category": "fatigue",
@@ -93,7 +101,9 @@ CATEGORY_BY_NUT = {
 }
 
 _SESSION_REF = None
+# Firebase 초기화 실패 또는 write 실패 시 True로 전환되며, 이후 모든 호출은 silent no-op.
 _FIREBASE_UNAVAILABLE = False
+# 백그라운드 워커 스레드가 소비하는 큐. write를 호출 스레드에서 분리해 음성 파이프라인을 블록하지 않음.
 _UPDATE_QUEUE = queue.Queue()
 _WORKER_STARTED = False
 
@@ -127,6 +137,7 @@ def _get_session_ref():
         _SESSION_REF = db.collection(SESSION_COLLECTION).document(SESSION_DOCUMENT)
         return _SESSION_REF
     except Exception as exc:
+        # 자격증명 누락/firebase_admin 미설치/네트워크 단절 등 모든 실패를 일괄 처리.
         _FIREBASE_UNAVAILABLE = True
         logger.warning("Firebase session connection failed: %s", exc)
         return None
@@ -155,6 +166,7 @@ def _blocking_update(payload):
 
 
 def _worker_loop():
+    # 데몬 스레드에서 큐를 무한 소비. write 지연이 호출자 스레드에 영향을 주지 않도록 한다.
     while True:
         payload = _UPDATE_QUEUE.get()
         try:

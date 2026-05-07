@@ -1,3 +1,8 @@
+# 한국어 요약:
+#   cobot_msgs의 Point/yaw 표현과 Doosan posx([x,y,z,rx,ry,rz]) 사이의 변환 유틸.
+#   Doosan posx는 위치는 mm, 자세는 ZYZ Euler 각도(degrees) 컨벤션을 그대로
+#   사용하므로 SI 단위 변환 없이 mm/도 단위를 유지한다.
+#   top-down 픽 자세는 rx=0, ry=180으로 고정하고 yaw만 rz로 흘려보낸다.
 """Convert between cobot_msgs Point/yaw and Doosan posx lists.
 
 Doosan DSR posx convention: [x, y, z, rx, ry, rz] in mm + ZYZ Euler degrees.
@@ -29,6 +34,7 @@ def point_yaw_to_posx(
     """Build a DSR posx list from a (x, y, z) point and a yaw on top-down."""
     if len(xyz_mm) != 3:
         raise ValueError(f"xyz_mm must be 3 floats, got {xyz_mm!r}")
+    # 한국어: posx는 mm·도 단위, yaw 입력은 라디안이므로 rz에는 degrees 변환.
     return [
         float(xyz_mm[0]),
         float(xyz_mm[1]),

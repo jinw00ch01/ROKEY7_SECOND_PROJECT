@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   cobot_task_manager의 진행 상황을 Firestore /robot_session/current 문서의
+#   robot_state 필드로 미러링하는 노드. /task/status, /task/result,
+#   /conveyor/place_ready 토픽을 구독하여 매핑 테이블을 통해 web UI용
+#   상태값으로 변환한다. Firebase 미설치/네트워크 단절 시 silent no-op으로
+#   처리하며, 로봇 파이프라인은 절대 블록하지 않는다.
 """Mirror cobot_task_manager progress to /robot_session/current in Firestore.
 
 The web UI subscribes to /robot_session/current to render the demo. The
@@ -51,6 +57,8 @@ from cobot_voice.firebase_bridge import publish_robot_progress
 
 
 # /task/status leading-token -> robot_state value
+# task_manager의 내부 상태 토큰을 web UI가 이해하는 robot_state 값으로 매핑.
+# action server가 stage별 진행을 외부로 노출하지 않으므로 토큰 단위로 추정한다.
 _STATUS_TO_ROBOT_STATE = {
     "init": "detecting",
     "detect": "detecting",
@@ -179,6 +187,8 @@ class FirebaseStatusBridge(Node):
         # PLACING and CONVEYOR_MOVING fire on the same edge in the current
         # architecture (see module docstring). Emit them back-to-back so
         # the web UI sees both.
+        # action server가 placing/conveyor 진행을 별도 신호로 노출하지 않기에
+        # /conveyor/place_ready의 False->True 에지 한 번에 두 상태를 연속 발행한다.
         fields = {}
         if self._target_class:
             fields["target_class"] = self._target_class
@@ -197,6 +207,7 @@ class FirebaseStatusBridge(Node):
         try:
             publish_robot_progress(robot_state, **fields)
         except Exception as exc:  # pragma: no cover - defensive
+            # Firebase 측 예외는 경고만 남기고 노드는 계속 spin — 로봇 파이프라인 보호.
             self.get_logger().warning(
                 f"firebase publish failed (continuing): {exc}"
             )

@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   2D OBB detection을 robot base 프레임 grasp 후보로 변환하는 ROS2 노드.
+#   detect_once 서비스 호출 시 detection / 깊이 / camera_info / TCP pose를 모아
+#   pinhole 모델로 카메라 좌표를 복원하고 hand-eye 체인으로 base 프레임에 투영한다.
+#   tcp_source는 fixed(파라미터) 또는 service(GetCurrentPose) 두 모드를 지원한다.
+#   gripper2camera_npy 캘리브레이션 파일은 시작 시 필수로 검증된다.
 """ROS2 node: bridges 2D OBB detections to base-frame grasp candidates.
 
 Pipeline per /perception/detect_once call:
@@ -53,6 +59,9 @@ class PerceptionTransformNode(Node):
         self.declare_parameter("gripper2camera_npy", "")
         self.declare_parameter("min_depth_camera_mm", 50.0)
         self.declare_parameter("max_depth_camera_mm", 1500.0)
+        # depth_offset_mm: 깊이 측정 편향(bias) 보정용 z 오프셋. 강의 노트 기준값.
+        # min_depth_base_mm: 변환 후 base z를 클램프하여 그리퍼가 바닥(테이블) 아래로
+        # 내려가는 것을 방지하는 안전 하한.
         self.declare_parameter("depth_offset_mm", -5.0)      # lecture's z bias
         self.declare_parameter("min_depth_base_mm", 2.0)     # clamp on base z
 
@@ -75,6 +84,8 @@ class PerceptionTransformNode(Node):
         self._intrinsics: Optional[dict] = None
 
         # Hand-eye matrix
+        # 캘리브레이션 누락은 mis-config로 간주하여 startup에서 즉시 raise.
+        # 런타임 detect_once에서 실패하면 디버깅이 어려우므로 조기 실패가 안전하다.
         npy_path = str(self.get_parameter("gripper2camera_npy").value or "").strip()
         if not npy_path:
             raise RuntimeError(
@@ -149,6 +160,7 @@ class PerceptionTransformNode(Node):
 
     def _on_camera_info(self, msg: CameraInfo) -> None:
         # Avoid recomputing on every callback
+        # K 매트릭스가 동일하면 dict 재구성을 생략 (camera_info는 매 프레임 재발행됨).
         if (
             self._intrinsics is not None
             and self._intrinsics["k"] == tuple(msg.k)
@@ -182,6 +194,8 @@ class PerceptionTransformNode(Node):
             )
         future = self._tcp_client.call_async(GetCurrentPose.Request())
         deadline = time.time() + timeout
+        # 서비스 핸들러(detect_once) 내부에서 호출되므로 add_done_callback 대신
+        # short-poll으로 결과를 기다린다. 5ms 간격은 응답 지연과 CPU 점유의 절충.
         while time.time() < deadline and not future.done():
             time.sleep(0.005)
         if not future.done():
@@ -221,6 +235,7 @@ class PerceptionTransformNode(Node):
             self.get_logger().error(response.message)
             return response
 
+        # base ← gripper ← camera 동차변환 체인 구성.
         base2gripper = tcp_to_base2gripper(tcp_xyz, tcp_zyz)
         base2cam = compose_base2camera(base2gripper, self._gripper2cam)
 
@@ -256,6 +271,7 @@ class PerceptionTransformNode(Node):
                 out.objects.append(obj)
                 continue
 
+            # pinhole 모델로 픽셀 좌표 (cx,cy)와 깊이 z_mm을 카메라 프레임 X,Y로 복원.
             X = (obj.cx - ppx) * z_mm / fx
             Y = (obj.cy - ppy) * z_mm / fy
             obj.camera_xyz.x = float(X)
@@ -263,6 +279,7 @@ class PerceptionTransformNode(Node):
             obj.camera_xyz.z = float(z_mm)
 
             bx, by, bz = transform_camera_to_base(base2cam, (X, Y, z_mm))
+            # depth_offset_mm로 측정 편향 보정 후 min_depth_base_mm 하한을 적용.
             bz = max(bz + depth_offset, min_depth_base)
             obj.base_xyz.x = bx
             obj.base_xyz.y = by

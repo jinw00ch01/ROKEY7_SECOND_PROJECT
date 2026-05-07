@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   클래스별 z offset을 YAML에서 읽어오는 single source of truth 로더이다.
+#   /task/start 경로와 scripts/pick_*.py가 동일한 오프셋을 쓰도록 한다.
+#   resolver는 explicit -> env var -> ament-share -> 소스 트리 순으로 후보를
+#   훑고, 파일이 없거나 키가 깨졌을 때도 DEFAULT_OFFSETS_MM으로 fallback해
+#   로봇이 멈추지 않게 한다.
 """Per-class Z-offset loader.
 
 Single source of truth for the offset added to grasp_xyz.z at pick time.
@@ -35,6 +41,12 @@ _YAML_KEY = "per_class_z_offset_mm"
 
 
 def _candidate_paths(explicit_path: Optional[str]) -> List[Path]:
+    # 4단계 fallback resolver:
+    #   1) explicit_path: 호출자/launch 파라미터가 명시한 경로 (최우선).
+    #   2) ENV_OVERRIDE: 운영 환경에서 빠르게 덮어쓰기 위한 환경 변수.
+    #   3) ament-share: colcon install 후 정상 배포된 cobot_config의 위치.
+    #   4) 소스 트리 fallback: install 안 된 dev 환경에서도 동작하도록.
+    # 순서는 "사용자 지정 -> 환경 -> 정상 install -> dev 편의" 우선순위를 따른다.
     out: List[Path] = []
     if explicit_path:
         out.append(Path(explicit_path).expanduser())
@@ -50,6 +62,7 @@ def _candidate_paths(explicit_path: Optional[str]) -> List[Path]:
             / "pick_offsets.yaml"
         )
     except Exception:
+        # ament_index가 import 안 되거나 패키지 미배포면 다음 후보로 넘어감.
         pass
     out.append(
         Path(__file__).resolve().parents[2]

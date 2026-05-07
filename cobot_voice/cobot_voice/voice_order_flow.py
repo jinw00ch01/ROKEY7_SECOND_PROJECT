@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   wake word 감지 후 STT로 사용자 상태/강도를 듣고 LLM 또는 메뉴 매칭으로
+#   추천 combo를 생성하는 음성 주문 플로우의 메인 모듈.
+#   TTS는 ElevenLabs → spd-say 순서로 auto-fallback 하며, freeform/menu
+#   두 가지 prompt mode를 환경변수로 전환한다. dispatch_callback 훅으로
+#   실제 로봇 동작은 분리하여 테스트 가능하도록 설계.
 import argparse
 import json
 import logging
@@ -47,6 +53,8 @@ TTS_DISABLED_VALUES = {"0", "false", "no", "off"}
 ELEVENLABS_PROVIDER_VALUES = {"elevenlabs", "eleven_labs", "eleven"}
 SPD_PROVIDER_VALUES = {"spd", "spd-say", "spdsay"}
 
+# freeform: 자연어 그대로 LLM에 전달하여 의도 추출.
+# menu: 정해진 번호/키워드만 받도록 하여 STT 오인식과 LLM 비용을 회피.
 PROMPT_MODE_FREEFORM = "freeform"
 PROMPT_MODE_MENU = "menu"
 
@@ -256,6 +264,8 @@ def speak(text):
 
     try:
         provider = _tts_provider()
+        # provider 명시 시 해당 backend만 시도. auto일 경우 ElevenLabs를 먼저
+        # 시도하고 실패하면 spd-say로 자동 폴백한다.
         if provider in ELEVENLABS_PROVIDER_VALUES:
             if not _get_elevenlabs_api_key():
                 logger.warning(
@@ -281,6 +291,8 @@ def speak(text):
 
 def wait_for_wake_word(wakeup, poll_interval=0.05, should_continue=None):
     logger.info("Waiting for wake word.")
+    # should_continue 콜백을 통해 외부(ROS shutdown 등)에서 대기 루프를
+    # 비동기적으로 중단할 수 있도록 한다.
     while should_continue is None or should_continue():
         if wakeup.is_wakeup():
             logger.info("Wake word detected.")
@@ -291,6 +303,8 @@ def wait_for_wake_word(wakeup, poll_interval=0.05, should_continue=None):
 
 
 def listen_text(stt=None, debug=False, prompt="사용자 입력"):
+    # debug 모드에서는 STT 대신 터미널 input으로 대체하여 마이크 없이 테스트 가능.
+    # 실제 STT는 Whisper 기반으로 5초 / 16kHz mono 녹음을 가정한다.
     if debug:
         return input(f"{prompt}> ").strip()
     if stt is None:
@@ -344,11 +358,15 @@ def _match_menu_choice(text, choices):
     sample = text.strip().lower()
     if not sample:
         return None
+    # 공백/구두점으로 토큰을 분리해 단일 ASCII 숫자("1")가 "12" 같은 더 긴
+    # 숫자에 부분 매칭되는 것을 방지한다.
     tokens = {t for t in re.split(r"[\s,.\?!　]+", sample) if t}
     for canonical, keywords in choices:
         for kw in keywords:
             if not kw:
                 continue
+            # 한 글자 ASCII 키워드(예: "1")는 토큰 단위로만 정확히 일치 검사.
+            # 그 외 다중 문자 키워드는 일반 substring 검색으로 처리.
             if len(kw) == 1 and kw.isascii():
                 if kw in tokens:
                     return canonical
@@ -382,6 +400,9 @@ def run_recommendation_flow(
     dispatch_callback=None,
     should_continue=None,
 ):
+    # dispatch_callback: 추천 결과를 실제 로봇 동작(pick & place 등)으로 보내는
+    #   훅. None이면 추천만 수행하고 종료하므로 단위 테스트에서 로봇 동작 분리 가능.
+    # should_continue: 외부 stop 신호(ROS shutdown 등) 폴링용 콜백.
     logger.debug("Starting recommendation flow. debug=%s wait_for_wake=%s", debug, wait_for_wake)
     reset_session()
 
@@ -421,6 +442,8 @@ def run_recommendation_flow(
 
         state_result = _resolve_state(state_text, openai_api_key, mode)
 
+        # Menu mode에서는 LLM을 거치지 않으므로 매칭 실패 시 한 번 재시도하여
+        # 사용자에게 다시 번호/키워드를 입력받는다.
         # Menu mode: validate the parse, retry once on miss before bailing.
         if mode == PROMPT_MODE_MENU and not state_result.get("category"):
             retry_prompt = get_message("retry_state")

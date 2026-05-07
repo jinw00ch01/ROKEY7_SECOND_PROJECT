@@ -1,3 +1,8 @@
+# 한국어 요약:
+#   PyAudio 기반 마이크 캡처 컨트롤러. wakeword/STT 파이프라인이 공유하는 입력
+#   스트림 설정(48kHz / mono / int16)과 record_audio()를 제공한다.
+#   device_index=6은 특정 호스트의 USB 마이크 번호로 하드코딩되어 있어 다른
+#   환경에서는 동작하지 않을 수 있다(이식성 한계).
 import pyaudio
 import wave
 import io
@@ -11,6 +16,7 @@ class MicConfig:
     channels: int = 1
     record_seconds: int = 5
     fmt: int = field(default_factory=lambda: pyaudio.paInt16)
+    # 호스트마다 다를 수 있는 입력 디바이스 번호. 다른 PC로 이식 시 재설정 필요.
     device_index: int = 6
     buffer_size: int = 24000
 

@@ -1,3 +1,10 @@
+# 한국어 요약:
+#   가상 e2e 테스트용 mock perception 노드.
+#   /perception/detect_once 호출 시 base 프레임으로 이미 변환된 8개의 너트
+#   detection(4 클래스 x 2 인스턴스)을 항상 반환한다.
+#   클래스별로 OBB 면적이 다른 두 인스턴스를 두어 target_selector가 큰 것을
+#   먼저 고르는 동작을 검증할 수 있다. RealSense / DSR_ROBOT2 없이 task_manager
+#   루프 전체를 시연 가능하도록 transform_valid=True로 발행한다.
 """Mock perception node for virtual e2e testing.
 
 Provides /perception/detect_once with a hardcoded scene of 8 nut detections
@@ -94,6 +101,7 @@ class MockPerceptionNode(Node):
         )
 
     def _handle_detect_once(self, _request, response):
+        # 호출 횟수를 로그에 남겨 캡처된 로그에서 detection cycle을 셀 수 있도록 한다.
         self._call_count += 1
         out = DetectedObjectArray()
         out.header.frame_id = "camera_color_optical_frame"

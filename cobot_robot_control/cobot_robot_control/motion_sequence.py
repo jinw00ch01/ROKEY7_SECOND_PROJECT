@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   PickAndPlace 액션의 9단계 stage 시퀀스를 실행.
+#   pre_grasp_width → approach → grasp → verify_grip → lift → transit →
+#   place → retreat → home 순서로 motion/gripper를 호출하며 feedback_cb로
+#   stage 이름을 보고. workspace_bounds 위반·취소·grip 미감지 등을
+#   failure_code(0~5)로 구분해 (success, code, message) 튜플로 반환.
 """Pick & place sequence for the cobot_robot_control Action server.
 
 Stages match cobot_msgs/action/PickAndPlace.action and feed back via the
@@ -16,6 +22,9 @@ failure_code values match the action definition:
   4 = safety_stop
   5 = workspace_violation
 """
+# 한국어: failure_code 의미 - 0=정상, 1=approach 실패(현재 미사용),
+# 2=close 후 grip 비검출(가장 흔한 실패), 3=motion/gripper 예외 일반,
+# 4=cancel/stop 신호, 5=workspace 경계 밖 좌표.
 
 from __future__ import annotations
 
@@ -85,6 +94,8 @@ def _apply_local_xy_offset(
     dx, dy = float(local_offset_xy_mm[0]), float(local_offset_xy_mm[1])
     if dx == 0.0 and dy == 0.0:
         return [float(grasp_xyz_mm[0]), float(grasp_xyz_mm[1]), float(grasp_xyz_mm[2])]
+    # 한국어: offset은 그리퍼 local 프레임 기준이므로 grasp yaw로 회전한 뒤
+    # world 좌표에 더해야 한다. yaw=0일 때만 offset이 그대로 world에 더해진다.
     c = math.cos(yaw_rad)
     s = math.sin(yaw_rad)
     world_dx = dx * c - dy * s
@@ -175,6 +186,9 @@ def execute_pick_and_place(
     motion.set_speed(cfg.velocity, cfg.acceleration)
 
     try:
+        # 한국어: 시작 시점에 place_ready=False로 강제. 컨베이어 트리거가
+        # False→True 에지를 보기 때문에, 한 번 False로 떨어뜨려야
+        # 이후 place 단계의 True 전이가 유효한 트리거가 된다.
         set_place_ready(False, "pick_and_place_started")
 
         # Pre-position the gripper width before motion starts so the close
@@ -195,11 +209,17 @@ def execute_pick_and_place(
         motion.set_speed(cfg.velocity_slow, cfg.acceleration_slow)
         motion.move_line(grasp_pose)
         gripper.close()
+        # 한국어: 첫 wait_until_idle은 close() 직후 busy 상승을 기다리고
+        # 끝까지 idle이 되기를 기다린다. 과거에는 close() 직후 stale idle을
+        # 읽고 즉시 verify_grip으로 넘어가 grip_detected 비트를 잘못 읽는
+        # 버그가 있었다(gripper_controller의 두 단계 검증과 짝).
         if not wait_until_idle(gripper, timeout_sec=cfg.grip_settle_timeout_sec):
             return False, 3, "gripper close did not settle in time"
 
         _safe_call(feedback_cb, "verify_grip")
         if not gripper.is_grip_detected():
+            # 한국어: 빈 grip이면 손가락을 다시 열고 approach 높이로 후퇴해
+            # 다음 시도/오퍼레이터가 안전하게 개입할 수 있게 한다.
             gripper.open()
             wait_until_idle(gripper, timeout_sec=cfg.grip_settle_timeout_sec)
             motion.set_speed(cfg.velocity, cfg.acceleration)
@@ -222,6 +242,9 @@ def execute_pick_and_place(
         if not wait_until_idle(gripper, timeout_sec=cfg.grip_settle_timeout_sec):
             return False, 3, "gripper open did not settle in time"
 
+        # 한국어: 그리퍼가 열린 직후, TCP의 y가 place 위치 margin 안에 있을 때만
+        # place_ready를 True로 set. 이 False→True 에지가 컨베이어 트리거로
+        # 사용되므로, 정확히 "물체가 놓인 순간"에만 한 번 발생해야 한다.
         try:
             at_place_y = is_tcp_at_place_y()
         except Exception as exc:  # noqa: BLE001
@@ -232,6 +255,8 @@ def execute_pick_and_place(
         _safe_call(feedback_cb, "retreat")
         motion.set_speed(cfg.velocity, cfg.acceleration)
         motion.move_line(above_return)
+        # 한국어: retreat 시작과 동시에 place_ready를 다시 False로 내려
+        # 다음 사이클을 위해 에지를 초기화.
         set_place_ready(False, "retreat")
 
         _safe_call(feedback_cb, "home")

@@ -1,3 +1,10 @@
+# 한국어 요약:
+#   Doosan + RG2 스택의 액션 서버와 유틸리티 서비스를 제공하는 노드.
+#   /robot/pick_and_place 액션과 /robot/home, /robot/stop, /robot/get_current_pose
+#   서비스를 노출. motion_backend(real|mock)와 gripper_backend(modbus|mock|tool_dio)
+#   파라미터로 백엔드를 선택해 동일 코드로 실기/가상 모드 전환.
+#   액션과 pose 서비스는 별도 helper 노드 + executor에서 spin해 DSR_ROBOT2 트래픽이
+#   메인 executor를 굶기는 문제를 회피.
 """Action server + utility services for the Doosan + RG2 stack.
 
 Exposes:
@@ -172,6 +179,14 @@ class RobotControlNode(Node):
         # inheriting the launch file's `__node:=robot_control_node`
         # remap, which would otherwise rename it to `robot_control_node`
         # and break service routing.
+        # 한국어: 액션 서버를 별도 helper 노드(robot_action_helper)에 두는 이유는
+        # DSR_ROBOT2 초기화가 메인 노드에 다수의 subscriber/client를 만들기 때문.
+        # 메인 executor가 그 트래픽으로 막히면 goal accept/execute가 지연된다.
+        # ReentrantCallbackGroup + _busy_lock 조합으로 execute가 진행 중에도
+        # goal_callback이 들어와 reject 응답을 즉시 보낼 수 있게 한다.
+        # use_global_arguments=False는 launch의 `__node:=robot_control_node`
+        # 리맵이 이 helper 노드 이름까지 덮어쓰는 것을 차단(중복 이름으로
+        # 서비스 라우팅이 깨지는 문제 방지).
         self._action_node = Node(
             "robot_action_helper",
             namespace=self.get_namespace(),
@@ -187,6 +202,10 @@ class RobotControlNode(Node):
             cancel_callback=self._on_cancel,
             callback_group=action_cb_group,
         )
+        # 한국어: num_threads=4 근거 - execute_callback이 진행 중일 때
+        # goal_callback / cancel_callback / home·stop 서비스 / DSR_ROBOT2
+        # 내부 spin_until_future_complete가 동시에 워커를 점유할 수 있어
+        # 최소 4개 스레드가 필요.
         self._action_executor = MultiThreadedExecutor(num_threads=4)
         self._action_executor.add_node(self._action_node)
         self._action_thread = threading.Thread(
@@ -221,6 +240,10 @@ class RobotControlNode(Node):
         # action completes, the main node's executor stops dispatching
         # /robot/get_current_pose, causing perception's detect_once to
         # time out.
+        # 한국어: pose 패스스루도 별도 helper 노드(robot_pose_helper)로 분리.
+        # pick_and_place 도중 DSR_ROBOT2가 메인 노드의 service client 큐를
+        # 점유하면 이 서비스 콜백이 dispatch되지 않아 perception detect_once가
+        # 타임아웃되는 증상이 관찰됐다.
         from dsr_msgs2.srv import GetCurrentPose as DoosanGetCurrentPose
         self._doosan_get_pose_type = DoosanGetCurrentPose
 
@@ -248,6 +271,9 @@ class RobotControlNode(Node):
         # for the client response. SingleThreadedExecutor would deadlock
         # because the handler blocks waiting for the response and there is
         # no second worker to dispatch it.
+        # 한국어: num_threads=2 근거 - 서비스 핸들러가 future를 polling하며
+        # 블록되는 동안, Doosan 응답을 dispatch할 두 번째 워커가 반드시 필요.
+        # SingleThreadedExecutor면 핸들러가 자기 응답을 기다리다 데드락.
         self._pose_executor = MultiThreadedExecutor(num_threads=2)
         self._pose_executor.add_node(self._pose_node)
         self._pose_thread = threading.Thread(
@@ -262,6 +288,9 @@ class RobotControlNode(Node):
     # ----- action lifecycle --------------------------------------------------
 
     def _on_goal(self, _goal_request) -> GoalResponse:
+        # 한국어: _busy_lock이 잠겨 있다는 것은 이미 execute_callback이
+        # 진행 중이라는 의미이므로 새 goal을 reject. 락 자체는 execute에서
+        # acquire/release 한다.
         if self._busy_lock.locked():
             self.get_logger().warn("Reject pick_and_place: another goal is in progress")
             return GoalResponse.REJECT
@@ -272,6 +301,8 @@ class RobotControlNode(Node):
 
     def _execute_pick_and_place(self, goal_handle):
         result_msg = PickAndPlace.Result()
+        # 한국어: goal_callback이 reject했어야 정상이지만, 경합 상황에서
+        # 두 goal이 동시에 accept된 경우를 대비한 두 번째 방어선.
         if not self._busy_lock.acquire(blocking=False):
             result_msg.success = False
             result_msg.failure_code = 3
@@ -380,6 +411,8 @@ class RobotControlNode(Node):
             if not self._doosan_pose_client.service_is_ready():
                 # Avoid wait_for_service since it has been observed to hang
                 # under load. We just check ready once.
+                # 한국어: load 상태에서 wait_for_service가 hang되는 현상이
+                # 관찰됐으므로 service_is_ready()로 한 번만 확인하고 즉시 실패.
                 log.warn("[pose] doosan service not ready (service_is_ready=False)")
                 response.success = False
                 response.message = (
@@ -397,6 +430,10 @@ class RobotControlNode(Node):
             # one thread and the callback is registered in another, even
             # though the callback API is supposed to handle it. Polling
             # `.done()` is what perception_transform_node uses too.
+            # 한국어: add_done_callback 대신 polling을 쓰는 이유는,
+            # future가 한 스레드에서 set되고 콜백이 다른 스레드에서 등록될 때
+            # 조용히 race가 발생해 콜백이 영원히 호출되지 않는 사례를 보았기 때문.
+            # perception_transform_node도 같은 이유로 polling을 사용한다.
             deadline = time.monotonic() + timeout
             while time.monotonic() < deadline and not future.done():
                 time.sleep(0.01)

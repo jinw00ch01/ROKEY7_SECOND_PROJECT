@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   object detection 노드용 YOLO 모델 경로 resolver.
+#   4단계 fallback 순서로 모델 위치를 찾아 배포/개발 환경 모두에서 동작하도록 한다:
+#     (1) configured 절대경로, (2) cwd 기준 상대경로,
+#     (3) ament-share 패키지 install 경로, (4) 소스 트리 experiments/ 산출물.
+#   파라미터 미지정 시에도 ament-share → source-tree 순으로 best.pt를 탐색한다.
 """Model path resolution for the object detection node."""
 
 from __future__ import annotations
@@ -7,6 +13,7 @@ from pathlib import Path
 
 def resolve_model_path(model_path: str) -> str:
     configured = str(model_path or "").strip()
+    # 파라미터로 명시된 경로가 있으면 cwd → ament-share 순서로 탐색.
     if configured:
         path = Path(configured).expanduser()
         if path.is_absolute():
@@ -38,6 +45,7 @@ def resolve_model_path(model_path: str) -> str:
     except Exception:
         pass
 
+    # 마지막 fallback: 개발 환경에서 install 없이 소스 트리의 학습 산출물을 사용.
     source_model = (
         Path(__file__).resolve().parents[2]
         / "experiments"

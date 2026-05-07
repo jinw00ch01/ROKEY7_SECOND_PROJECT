@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   너트 detection을 위한 hand-eye 및 base 프레임 변환 유틸.
+#   Doosan TCP 컨벤션(위치 mm, 회전 ZYZ Euler degrees)을 패키지 전체에 일관되게
+#   적용한다. npy로부터 로드한 hand-eye 매트릭스도 mm 단위라 단위 일관성이 유지된다.
+#   base ← gripper ← camera 4x4 동차변환 체인을 구성하고, 카메라 좌표 점을
+#   base 프레임으로 매핑하는 함수들을 제공한다.
 """Hand-eye + base-frame transforms for nut detections.
 
 Doosan TCP convention used everywhere in this package:
@@ -26,6 +32,7 @@ def load_gripper2camera(npy_path: str) -> np.ndarray:
 def tcp_to_base2gripper(tcp_xyz_mm: Sequence[float], tcp_zyz_deg: Sequence[float]) -> np.ndarray:
     if len(tcp_xyz_mm) != 3 or len(tcp_zyz_deg) != 3:
         raise ValueError("TCP needs 3 translation and 3 rotation values")
+    # Doosan posx 규약을 그대로 사용하여 ZYZ Euler(degrees)로 회전 행렬을 구성.
     R = Rotation.from_euler("ZYZ", list(tcp_zyz_deg), degrees=True).as_matrix()
     T = np.eye(4, dtype=np.float64)
     T[:3, :3] = R
