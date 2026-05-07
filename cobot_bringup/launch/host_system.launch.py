@@ -17,6 +17,7 @@ Launch args:
 
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument
+from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.substitutions import FindPackageShare
@@ -45,6 +46,16 @@ def generate_launch_description() -> LaunchDescription:
             default_value="",
             description="Absolute path to latest_order.json. Required when order_source=file.",
         ),
+        DeclareLaunchArgument(
+            "enable_firebase_status_bridge",
+            default_value="true",
+            description=(
+                "Run cobot_voice firebase_status_bridge alongside task_manager. "
+                "Mirrors /task/status, /task/result, /conveyor/place_ready into "
+                "/robot_session/current.robot_state for the web UI. No-ops when "
+                "Firebase creds are missing; never blocks the robot pipeline."
+            ),
+        ),
     ]
 
     task_manager = Node(
@@ -62,4 +73,12 @@ def generate_launch_description() -> LaunchDescription:
         ],
     )
 
-    return LaunchDescription(args + [task_manager])
+    firebase_status_bridge = Node(
+        package="cobot_voice",
+        executable="firebase_status_bridge",
+        name="firebase_status_bridge",
+        output="screen",
+        condition=IfCondition(LaunchConfiguration("enable_firebase_status_bridge")),
+    )
+
+    return LaunchDescription(args + [task_manager, firebase_status_bridge])

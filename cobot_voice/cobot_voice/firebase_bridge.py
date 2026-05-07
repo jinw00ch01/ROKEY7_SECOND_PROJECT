@@ -26,6 +26,18 @@ DISPLAY_STATES = {
     "error",
 }
 
+# Robot-pipeline progress states. These live in a separate Firestore
+# field (`robot_state`) from the voice-flow `display_state` so the two
+# can be observed independently by the web UI.
+ROBOT_PROGRESS_STATES = {
+    "detecting",
+    "picking",
+    "placing",
+    "conveyor_moving",
+    "task_done",
+    "error",
+}
+
 DEFAULT_THEME = {
     "primary_category": "",
     "primary_nut": "",
@@ -301,6 +313,25 @@ def publish_error(message):
         success=False,
         theme=ERROR_THEME,
     )
+
+
+def publish_robot_progress(state, **fields):
+    """Mirror robot-pipeline progress to /robot_session/current.
+
+    Writes to a separate ``robot_state`` field so the voice-flow's
+    ``display_state`` is preserved. Optional kwargs are prefixed with
+    ``robot_`` in the document (so e.g. ``target_class="cashew"`` is
+    written as ``robot_target_class``). If Firebase is unreachable
+    this returns False silently — see _safe_update.
+    """
+    if state not in ROBOT_PROGRESS_STATES:
+        logger.warning("Unknown robot progress state %r; using error.", state)
+        state = "error"
+
+    payload = {"robot_state": state}
+    for key, value in fields.items():
+        payload[f"robot_{key}"] = value
+    return _safe_update(payload)
 
 
 def build_theme(categories, combo):

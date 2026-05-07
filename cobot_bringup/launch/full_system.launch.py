@@ -40,6 +40,7 @@ def generate_launch_description() -> LaunchDescription:
         "task_autostart",
         "order_source",
         "file_order_path",
+        "enable_firebase_status_bridge",
     ]
 
     args = [
@@ -60,6 +61,15 @@ def generate_launch_description() -> LaunchDescription:
             "file_order_path",
             default_value="",
             description="Absolute path to latest_order.json (when order_source=file)",
+        ),
+        DeclareLaunchArgument(
+            "enable_firebase_status_bridge",
+            default_value="true",
+            description=(
+                "Run firebase_status_bridge to mirror robot pipeline state to "
+                "Firestore /robot_session/current.robot_state for the web UI. "
+                "Set false to skip; no-ops anyway if Firebase creds missing."
+            ),
         ),
         DeclareLaunchArgument(
             "config_object_detection",
@@ -147,6 +157,7 @@ def generate_launch_description() -> LaunchDescription:
             forward("task_autostart"),
             forward("order_source"),
             forward("file_order_path"),
+            forward("enable_firebase_status_bridge"),
         ],
     )
 
