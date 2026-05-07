@@ -474,23 +474,18 @@ class TaskStatusBridge(Node):
 
 플랜 진행 전에 인지하고 있어야 할 기존 코드 이슈들:
 
-### 9-A-1. ⚠ `command_parser_node.py` 깨진 import
+### 9-A-1. ✅ `command_parser_node.py` — RETIRED
 
-```python
-# cobot_voice/cobot_voice/command_parser_node.py:5
-from cobot_msgs.msg import RobotCommand   # ← cobot_msgs/msg/RobotCommand.msg 파일 없음!
-```
+이 이슈는 옵션 (B)로 해결됨: `command_parser_node.py`와 `firebase_state_bridge` 가
+dead code로 판정되어 제거되었음 (헤더 changelog 참조).
 
-→ **이 노드는 시작 시 ImportError로 죽음**. 다행히 음성 → 추천 메인 흐름은 `voice_order_flow.py`(별도 모듈)를 쓰므로 영향 적음. 하지만:
-- launch에 포함되면 launch 자체가 실패할 수 있음
-- 현재 cobot_voice의 setup.py에 entry_point로 등록돼 있는지 확인 필요
-
-**처리 옵션:**
-- (A) `cobot_msgs/msg/RobotCommand.msg` 파일 신규 작성 (사용 안 할거면 지나친 작업)
-- (B) `command_parser_node.py`를 정리/제거 (메인 흐름에서 안 쓰면)
-- (C) launch에서 제외
-
-→ **권장: (B) 또는 (C)**. 메인 음성 흐름은 voice_order_flow.py 기반이라 이 노드 불필요해 보임.
+검증 (2026-05-07 재확인):
+- `cobot_voice/cobot_voice/`에 `command_parser_node.py` 부재
+- 어떤 launch / setup.py entry_point / 스크립트도 참조하지 않음
+- `cobot_msgs/`에 `RobotCommand.msg`는 존재한 적 없음 (생성 불필요)
+- 잔존 흔적은 `__pycache__/command_parser_node.cpython-310.pyc` 단 하나(orphan
+  .pyc는 같은 디렉토리에 .py가 있어야만 import되므로 무해, `colcon clean`
+  또는 `rm -rf __pycache__/`로 정리 가능)
 
 ### 9-A-2. `/db/get_nut_order` 서비스 서버 부재
 
@@ -642,10 +637,6 @@ DetectedObject.msg  ✓ 정의됨
   camera_xyz, base_xyz, grasp_yaw, short_axis_mm, long_axis_mm,
   transform_valid
 
-RobotCommand.msg  ⚠ 정의 파일 부재
-  → command_parser_node.py가 import 시도 → ImportError 발생
-  → 9-A-1 참조
-
 GetCurrentPose.srv  ✓ 정의됨, 서버 구현됨
   Response: xyz_mm, zyz_deg, success, message
 ```
@@ -661,8 +652,7 @@ GetCurrentPose.srv  ✓ 정의됨, 서버 구현됨
 | `/task/result` | ✓ String | ✓ task_manager_node:149 | **❌ 0** | Phase 4에서 미러 |
 | `/task/start` | ❌ | **미구현** | 없음 | Phase 3에서 추가 |
 | `/db/get_nut_order` | ✓ srv | **❌ 서버 없음** | task_manager (timeout) | 9-A-2 |
-| `/voice/text` | ✓ String | ✓ voice_processing_node | command_parser_node (깨짐) | 9-A-1 |
-| `/command/parsed` | RobotCommand | 노드 시작 실패 | 없음 | 9-A-1 |
+| `/voice/text` | ✓ String | ✓ voice_processing_node | (없음 — 메인 흐름은 voice_order_flow) | 정상 |
 | `/robot_session/current` (Firestore) | — | firebase_bridge | useRobotSession.ts | 정상 |
 
 ---
