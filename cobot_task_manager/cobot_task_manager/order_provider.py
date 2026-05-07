@@ -10,9 +10,10 @@ share the `OrderBook` data class:
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Protocol
+from typing import Callable, Dict, Iterable, Optional, Protocol
 
 
 _NUT_CLASSES = frozenset({"almond", "cashew", "pistachio", "walnut"})
@@ -91,23 +92,40 @@ class DBOrderProvider:
     construction happens at the call site so we can pass the rclpy node in.
     """
 
-    def __init__(self, node, service_name: str = "/db/get_nut_order", timeout_sec: float = 5.0) -> None:
-        from cobot_msgs.srv import GetNutOrder  # type: ignore
+    def __init__(
+        self,
+        node,
+        service_name: str = "/db/get_nut_order",
+        timeout_sec: float = 5.0,
+        should_stop: Optional[Callable[[], bool]] = None,
+        service_type=None,
+        poll_sec: float = 0.05,
+    ) -> None:
+        if service_type is None:
+            from cobot_msgs.srv import GetNutOrder  # type: ignore
 
-        self._node = node
-        self._client = node.create_client(GetNutOrder, service_name)
-        self._req_type = GetNutOrder.Request
+            service_type = GetNutOrder
+
+        self._client = node.create_client(service_type, service_name)
+        self._req_type = service_type.Request
         self._timeout = float(timeout_sec)
         self._service_name = service_name
+        self._should_stop = should_stop or (lambda: False)
+        self._poll_sec = float(poll_sec)
+
+    def _await_future(self, future) -> bool:
+        deadline = time.monotonic() + self._timeout
+        while time.monotonic() < deadline and not future.done():
+            if self._should_stop():
+                return False
+            time.sleep(self._poll_sec)
+        return future.done()
 
     def fetch(self) -> OrderBook:
         if not self._client.wait_for_service(timeout_sec=self._timeout):
             raise RuntimeError(f"{self._service_name} not available")
         future = self._client.call_async(self._req_type())
-        # The caller node must be spun externally; we just wait on the future.
-        import rclpy
-        rclpy.spin_until_future_complete(self._node, future, timeout_sec=self._timeout)
-        if not future.done():
+        if not self._await_future(future):
             raise RuntimeError(f"{self._service_name} call timed out")
         resp = future.result()
         if not getattr(resp, "success", False):

@@ -103,6 +103,9 @@ class TaskManagerNode(Node):
 
         self.declare_parameter("autostart", True)
 
+        self._stop_event = threading.Event()
+        self._worker: Optional[threading.Thread] = None
+
         # Build order provider
         order_source = str(self.get_parameter("order_source").value)
         if order_source == "mock":
@@ -117,6 +120,7 @@ class TaskManagerNode(Node):
                 node=self,
                 service_name=str(self.get_parameter("db_service_name").value),
                 timeout_sec=float(self.get_parameter("service_timeout_sec").value),
+                should_stop=self._stop_event.is_set,
             )
         elif order_source == "file":
             file_path = str(self.get_parameter("file_order_path").value)
@@ -189,8 +193,6 @@ class TaskManagerNode(Node):
         self._result_pub = self.create_publisher(String, "/task/result", 10)
 
         self._state = TaskState.IDLE
-        self._stop_event = threading.Event()
-        self._worker: Optional[threading.Thread] = None
 
         # Service to trigger the worker manually (when autostart=False).
         # Useful when downstream nodes (perception YOLO load, camera) need
