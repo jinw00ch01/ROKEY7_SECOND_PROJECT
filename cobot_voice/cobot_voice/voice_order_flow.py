@@ -368,15 +368,19 @@ def run_recommendation_flow(
             return order
 
         ask_intensity = get_message("ask_intensity")
-        combined_message = f"{reasoning_message} {ask_intensity}"
         
         update_display_state(
             "asking_intensity",
             categories=categories,
             theme=build_theme(categories, []),
         )
-        publish_question(combined_message, "asking_intensity")
-        speak(combined_message)
+        # UI에는 핵심 질문만 표시 (예: "얼마나 드릴까요?")
+        # TTS로는 AI의 판단 근거를 포함하여 상세히 설명
+        simple_prompt = get_message("ask_intensity")
+        combined_tts_message = reasoning_message + " " + simple_prompt
+        
+        publish_question(simple_prompt, "asking_intensity")
+        speak(combined_tts_message)
         
         update_display_state("listening_intensity")
         intensity_text = listen_text(stt=stt, debug=debug, prompt="강도")
@@ -405,10 +409,13 @@ def run_recommendation_flow(
         order = save_recommendation_order(recommendation)
 
         if order["success"]:
-            confirm_message = f"{intensity_reasoning} {get_message('confirm_template', combo_text=order['combo_text'])}"
-            order["confirm_message"] = confirm_message
+            # 최종 확인 단계도 마찬가지로 UI는 깔끔하게, 목소리는 상세하게
+            simple_confirm = get_message('confirm_template', combo_text=order['combo_text'])
+            combined_confirm_tts = intensity_reasoning + " " + simple_confirm
+            
+            order["confirm_message"] = simple_confirm # 화면에는 간결하게
             publish_recommendation_result(order)
-            speak(confirm_message)
+            speak(combined_confirm_tts)
 
             if dispatch_callback is not None:
                 publish_dispatching(order)

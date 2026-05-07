@@ -108,9 +108,45 @@ class KeywordExtractor:
         return action, targets
 
 
-def build_latest_order(text):
-    recommendation = recommend_nuts(text)
-    return build_latest_order_from_recommendation(recommendation)
+def build_latest_order(text: str):
+    from cobot_voice.env import get_required_env
+    from cobot_voice.keyword_extractor import StateAnalyzer, IntensityAnalyzer
+    api_key = get_required_env("OPENAI_API_KEY")
+    
+    # Analyze state using AI
+    state_analyzer = StateAnalyzer(openai_api_key=api_key)
+    state_result = state_analyzer.analyze(text)
+    
+    category = state_result.get("category")
+    categories = [category] if category else []
+    reasoning = state_result.get("reasoning_message", "")
+    
+    # Default intensity
+    intensity = "normal"
+    
+    if categories:
+        intensity_analyzer = IntensityAnalyzer(openai_api_key=api_key)
+        intensity_result = intensity_analyzer.analyze(text)
+        intensity = intensity_result.get("intensity", "normal")
+        # Combine reasoning if both exist
+        if intensity_result.get("reasoning_message"):
+            reasoning += " " + intensity_result.get("reasoning_message")
+
+    from cobot_voice.nut_recommendation import recommend_nuts
+    combo, combo_text = recommend_nuts(categories, intensity)
+    
+    order = build_latest_order_from_recommendation({
+        "recognized_text": text,
+        "categories": categories,
+        "intensity": intensity,
+        "combo": combo,
+        "combo_text": combo_text
+    })
+    # 화면(UI)에는 AI 판단 근거 대신 결과 텍스트만 표시하여 UI 클린 유지
+    order["confirm_message"] = combo_text
+    # AI 판단 근거는 내부 로그용 혹은 필요시 TTS용으로 보존
+    order["ai_reasoning"] = reasoning 
+    return order
 
 
 def build_latest_order_from_recommendation(recommendation):
@@ -222,10 +258,10 @@ STATE_ANALYZER_PROMPT = """
 - focus (집중/두뇌) -> 호두
 
 <출력 형식 (반드시 JSON 형식으로 출력)>
-{
+{{
   "category": "fatigue",
   "reasoning_message": "요즘 많이 피곤하시군요. 피로 회복에 도움을 주는 캐슈넛을 준비해 드릴게요."
-}
+}}
 
 <사용자 입력>
 "{user_input}"
@@ -240,10 +276,10 @@ INTENSITY_ANALYZER_PROMPT = """
 - high (많이): 3개 이상 (예: 많이, 듬뿍, 왕창)
 
 <출력 형식 (반드시 JSON 형식으로 출력)>
-{
+{{
   "intensity": "high",
   "reasoning_message": "기운이 팍팍 나도록 넉넉하게 준비해 드릴게요."
-}
+}}
 
 <사용자 입력>
 "{user_input}"
