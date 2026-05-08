@@ -321,8 +321,11 @@ class JobAnalyzer:
                 content = content[3:-3].strip()
             return json.loads(content)
         except json.JSONDecodeError:
+            import random
             logger.error("Failed to parse JobAnalyzer JSON response: %s", response.content)
-            return {"job": "알 수 없음", "recommended_nuts": ["almond"], "reasoning_message": "잘 알아듣지 못했지만, 기본 견과류를 준비해 드릴게요."}
+            all_nuts = ["almond", "cashew", "pistachio", "walnut"]
+            random_nuts = random.sample(all_nuts, 2)
+            return {"job": "알 수 없음", "recommended_nuts": random_nuts, "reasoning_message": "직업을 정확히 파악하지 못해 무작위로 2가지를 골라 준비해 드릴게요."}
 
 class SatietyAnalyzer:
     def __init__(self, openai_api_key):

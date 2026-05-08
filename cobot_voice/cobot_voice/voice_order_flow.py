@@ -431,18 +431,11 @@ def run_recommendation_flow(
         reasoning_message = job_result.get("reasoning_message", "직업을 파악하기 어렵네요.")
 
         if not categories:
-            logger.info("AI could not determine nuts; saving unsuccessful order.")
-            recommendation = {
-                "recognized_text": job_text,
-                "categories": [],
-                "intensity": "normal",
-                "combo": [],
-                "combo_text": "",
-            }
-            order = save_recommendation_order(recommendation)
-            publish_error("직업에 따른 견과류를 찾지 못했습니다.")
-            speak(reasoning_message)
-            return order
+            import random
+            logger.info("AI could not determine nuts; falling back to random 2 nuts.")
+            all_nuts = ["almond", "cashew", "pistachio", "walnut"]
+            categories = random.sample(all_nuts, 2)
+            reasoning_message = "직업을 정확히 파악하지 못해 무작위로 2가지를 골라 준비해 드릴게요."
 
         update_display_state(
             "asking_satiety",

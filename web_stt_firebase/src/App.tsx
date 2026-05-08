@@ -246,24 +246,20 @@ function updateDisplayPanel(session: RobotSession) {
 }
 
 function resolveSessionTheme(session: RobotSession): RobotSessionTheme {
+  if (session.display_state === "dispatching" && session.robot_target_class) {
+    const targetTheme = THEME_BY_CATEGORY[CATEGORY_BY_NUT[session.robot_target_class]];
+    if (targetTheme) return targetTheme;
+  }
+
   const firstCategory = session.categories[0];
   const firstNut = session.combo[0]?.nut;
-  const secondNut = session.combo[1]?.nut;
   const primaryTheme =
     (firstCategory && THEME_BY_CATEGORY[firstCategory]) ||
     (firstNut && THEME_BY_CATEGORY[CATEGORY_BY_NUT[firstNut]]) ||
     session.theme ||
     DEFAULT_SESSION_THEME;
 
-  if (!secondNut) return primaryTheme;
-
-  const secondTheme = THEME_BY_CATEGORY[CATEGORY_BY_NUT[secondNut]];
-  if (!secondTheme) return primaryTheme;
-
-  return {
-    ...primaryTheme,
-    accent_color: secondTheme.accent_color,
-  };
+  return primaryTheme;
 }
 
 function mapDisplayStateToSceneMode(state: DisplayState): RobotMode {
@@ -378,7 +374,10 @@ export default function App() {
     stop: stopVoice,
   } = browserVoice;
   const activeNut =
-    robotSession.theme.primary_nut || robotSession.combo[0]?.nut || "";
+    (robotSession.display_state === "dispatching" && robotSession.robot_target_class) ||
+    robotSession.theme.primary_nut ||
+    robotSession.combo[0]?.nut ||
+    "";
   const terrainColorCommand = getTerrainColorCommand(activeNut);
   const display = setDisplayState(robotSession.display_state, robotSession);
   const resolvedTheme = resolveSessionTheme(robotSession);

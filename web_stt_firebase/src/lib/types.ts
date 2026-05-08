@@ -62,5 +62,7 @@ export type RobotSession = {
   success: boolean;
   theme: RobotSessionTheme;
   error: string;
+  robot_state?: string;
+  robot_target_class?: NutClass;
   updated_at?: string | Timestamp;
 };

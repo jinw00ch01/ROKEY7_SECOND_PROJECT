@@ -34,7 +34,7 @@ class WakeupWord:
         confidence = outputs[self.model_name]
         print("confidence: ", confidence)
         # threshold 0.003은 매우 낮은 값 — 호출 누락(miss)을 줄이려는 보수적 설정.
-        if confidence > 0.003:
+        if confidence > 0.00001:
             print("Wakeword detected!")
             return True
         return False
