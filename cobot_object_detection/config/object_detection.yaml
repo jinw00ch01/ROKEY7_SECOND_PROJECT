@@ -7,7 +7,7 @@
     imgsz: 800
     conf_threshold: 0.75
     iou_threshold: 0.50
-    device: ""                       # "" = auto, "cpu", "cuda:0"
+    device: "cuda:0"                 # "" = auto, "cpu", "cuda:0"
     multi_frame_window_sec: 0.5
     cluster_distance_threshold_px: 30.0
     color_topic: "/camera/camera/color/image_raw"
