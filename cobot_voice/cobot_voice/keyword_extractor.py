@@ -138,8 +138,17 @@ def build_latest_order(text: str):
         if intensity_result.get("reasoning_message"):
             reasoning += " " + intensity_result.get("reasoning_message")
 
-    from cobot_voice.nut_recommendation import recommend_nuts
-    combo, combo_text = recommend_nuts(categories, intensity)
+    from cobot_voice.nut_recommendation import (
+        build_combo,
+        format_combo_text,
+        load_json,
+        _get_config_dir,
+    )
+    config_dir = _get_config_dir()
+    categories_config = load_json(config_dir / "keyword_categories.json")
+    combo_rules = load_json(config_dir / "nut_combo_rules.json")
+    combo = build_combo(categories, intensity, combo_rules, categories_config)
+    combo_text = format_combo_text(combo)
     
     order = build_latest_order_from_recommendation({
         "recognized_text": text,
