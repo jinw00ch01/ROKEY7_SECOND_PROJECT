@@ -37,6 +37,8 @@ class ObjectDetectionNode(Node):
     def __init__(self) -> None:
         super().__init__("object_detection_node")
 
+        # 추론 모델 / 임계값 — yaml·launch 에서 조정. 'device' 는 빈 문자열일 때
+        # ultralytics 가 CUDA/CPU 를 자동 선택하도록 아래에서 None 으로 변환된다.
         self.declare_parameter("model_path", "")
         self.declare_parameter(
             "class_names",
@@ -46,8 +48,12 @@ class ObjectDetectionNode(Node):
         self.declare_parameter("conf_threshold", 0.40)
         self.declare_parameter("iou_threshold", 0.50)
         self.declare_parameter("device", "")
+        # 단기 윈도우 융합 파라미터 — window_sec 동안 cluster 거리(px) 안에 들어오는
+        # 같은 클래스 검출을 묶어 평균을 publish, 한 프레임짜리 깜빡임을 억제한다.
         self.declare_parameter("multi_frame_window_sec", 0.5)
         self.declare_parameter("cluster_distance_threshold_px", 30.0)
+        # I/O 토픽 + 빈 결과 publish 정책. publish_when_empty=False 면
+        # downstream(detect_once 서비스)이 latched 캐시에 의존할 수 있으므로 주의.
         self.declare_parameter("color_topic", "/camera/camera/color/image_raw")
         self.declare_parameter("output_topic", "/detection/objects")
         self.declare_parameter("publish_when_empty", True)
@@ -58,6 +64,7 @@ class ObjectDetectionNode(Node):
         conf = float(self.get_parameter("conf_threshold").value)
         iou = float(self.get_parameter("iou_threshold").value)
         device_param = self.get_parameter("device").value
+        # 빈 문자열은 ultralytics 의 자동 디바이스 선택을 의미하므로 None 으로 정규화.
         device = device_param if device_param else None
 
         window_sec = float(self.get_parameter("multi_frame_window_sec").value)
@@ -101,6 +108,8 @@ class ObjectDetectionNode(Node):
             Image, color_topic, self._on_color, sensor_qos
         )
 
+        # color image msg.header.frame_id 가 비어 들어올 때만 사용하는 폴백.
+        # RealSense2 driver 는 보통 'camera_color_optical_frame' 을 채워 보낸다.
         self._frame_id = "camera_color_optical_frame"
         self._processing = False
         self.get_logger().info(
@@ -124,6 +133,8 @@ class ObjectDetectionNode(Node):
             detections = self._detector.infer(frame)
             t_inf = time.time() - t_inf_start
 
+            # add() 로 윈도우에 누적하고 fuse() 가 만료된 항목을 제거한 뒤
+            # 같은 클래스/근접 픽셀 검출을 클러스터링한 평균 OBB 를 돌려준다.
             now = time.time()
             self._aggregator.add(detections, now)
             fused = self._aggregator.fuse()
@@ -132,6 +143,9 @@ class ObjectDetectionNode(Node):
                 return
 
             out = DetectedObjectArray()
+            # 카메라 원본 stamp/frame_id 를 그대로 전달 — perception 측에서 같은
+            # 프레임의 align_depth 와 TF 를 시점 기준으로 매칭할 때 필요하다.
+            # now() 로 덮어쓰면 perception 깊이 lookup 의 stale 검사가 어긋난다.
             out.header.stamp = msg.header.stamp
             out.header.frame_id = msg.header.frame_id or self._frame_id
 
