@@ -124,6 +124,7 @@ export function NutEncyclopedia({ themeStyle }: NutEncyclopediaProps) {
       </div>
 
       {loading && <p style={{ textAlign: 'center', color: themeStyle.accentColor, fontSize: 13, margin: '8px 0' }}>조회 중...</p>}
+      {error && <p style={{ textAlign: 'center', color: '#ffb4b4', fontSize: 13, margin: '8px 0' }}>{error}</p>}
 
       {nutData && !loading && (
         <div style={{
