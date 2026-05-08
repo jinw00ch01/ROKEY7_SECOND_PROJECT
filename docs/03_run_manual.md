@@ -374,11 +374,11 @@ open 실패를 로깅하고 `serial_port=None` 으로 동작한다. 포트가 `N
   `latest_order.json` 을 소비):
   ```bash
   source ~/cobot2_ws/install/setup.bash
-  ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false enable_firebase_status_bridge:=false order_source:=file file_order_path:=/home/aes/cobot2_ws/cobot_voice/output/latest_order.json
+  ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false enable_firebase_status_bridge:=false order_source:=file file_order_path:=~/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json
   ```
   T1 로그에서 확인:
   ```
-  FileOrderProvider reading /home/aes/cobot2_ws/cobot_voice/output/latest_order.json
+  FileOrderProvider reading ~/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json
   ```
   이 라인이 없다면 task manager 가 `mock` 으로 폴백한 것 —
   `order_source:=file` 인자와 launch 라인이 줄바꿈되지 않았는지 재확인.
@@ -536,7 +536,7 @@ ros2 topic hz /camera/camera/aligned_depth_to_color/image_raw
 
 ```bash
 source ~/cobot2_ws/install/setup.bash
-ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false dsr_mode:=real config_robot_control:=$(ros2 pkg prefix cobot_robot_control)/share/cobot_robot_control/config/robot_control.real.yaml order_source:=file file_order_path:=/home/aes/cobot2_ws/cobot_voice/output/latest_order.json
+ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false dsr_mode:=real config_robot_control:=$(ros2 pkg prefix cobot_robot_control)/share/cobot_robot_control/config/robot_control.real.yaml order_source:=file file_order_path:=~/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json
 ```
 
 인자에 대한 비고:
@@ -555,7 +555,7 @@ ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_rea
 - `Initializing Modbus RG2 at 192.168.1.1:502 (force=15.0N)`
 - `robot_control_node ready (action=/robot/pick_and_place)`
 - `Service /perception/detect_once ready`
-- `FileOrderProvider reading /home/aes/cobot2_ws/cobot_voice/output/latest_order.json`
+- `FileOrderProvider reading ~/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json`
 
 #### T4 — 컨베이어 (실제 Arduino)
 
@@ -1049,7 +1049,7 @@ cd ~/cobot2_ws && colcon build --symlink-install && source install/setup.bash
 ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false enable_firebase_status_bridge:=false
 
 # Real e2e (T1: dsr_bringup2; T2: realsense; T3: this)
-ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false dsr_mode:=real config_robot_control:=$(ros2 pkg prefix cobot_robot_control)/share/cobot_robot_control/config/robot_control.real.yaml order_source:=file file_order_path:=/home/aes/cobot2_ws/cobot_voice/output/latest_order.json
+ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false dsr_mode:=real config_robot_control:=$(ros2 pkg prefix cobot_robot_control)/share/cobot_robot_control/config/robot_control.real.yaml order_source:=file file_order_path:=~/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json
 
 # Conveyor
 ros2 launch conveyor_controller conveyor_controller.launch.py

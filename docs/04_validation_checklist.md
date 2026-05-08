@@ -295,13 +295,13 @@ ros2 action info /robot/pick_and_place -t
 실제로 task manager까지 흘러가도록).
 
 ```bash
-ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false order_source:=file file_order_path:=/home/aes/cobot2_ws/cobot_voice/output/latest_order.json
+ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false order_source:=file file_order_path:=~/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json
 ```
 
 T1 task-manager 로그에 다음이 포함되는지 확인한다.
 
 ```
-FileOrderProvider reading /home/aes/cobot2_ws/cobot_voice/output/latest_order.json
+FileOrderProvider reading ~/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json
 ```
 
 ### 4.1 TTS 프롬프트
@@ -400,7 +400,7 @@ file 모드에서는 `/task/start` 후 `/task/status` 로그 라인으로
 ls -la ~/cobot2_ws/cobot_voice/output/latest_order.json
 python3 -c "
 import json
-d = json.load(open('/home/aes/cobot2_ws/cobot_voice/output/latest_order.json'))
+d = json.load(open('~/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json'))
 assert d.get('success') is True, 'success must be true'
 assert d.get('combo'), 'combo empty'
 assert all(c['nut'] in {'almond','cashew','pistachio','walnut'} for c in d['combo']), 'bad nut name'
@@ -460,7 +460,7 @@ out = {
     "combo_text": "",
     "success": False,
 }
-json.dump(out, open("/home/aes/cobot2_ws/cobot_voice/output/latest_order.json", "w"), ensure_ascii=False, indent=2)
+json.dump(out, open("~/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json", "w"), ensure_ascii=False, indent=2)
 print("wrote invalid order")
 PY
 
