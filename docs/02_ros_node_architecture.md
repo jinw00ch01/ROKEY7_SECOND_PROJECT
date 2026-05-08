@@ -580,8 +580,8 @@ ros2 service call /robot/stop std_srvs/srv/Trigger "{}"
 이쪽이 권장된다:
 
 ```bash
-~/cobot2_ws/scripts/pick_one.py cashew --dry-run         # print only
-~/cobot2_ws/scripts/pick_one.py cashew --z-override 315  # send action
+~/cobot_ws/scripts/pick_one.py cashew --dry-run         # print only
+~/cobot_ws/scripts/pick_one.py cashew --z-override 315  # send action
 ```
 
 프로그래밍적 CLI 형식:

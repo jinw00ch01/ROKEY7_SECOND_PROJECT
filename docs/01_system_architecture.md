@@ -1,6 +1,6 @@
 # 시스템 아키텍처
 
-이 문서는 `cobot2_ws` 워크스페이스의 최종 상태를 기술한다. 시스템이 무엇을 하는지, 그것을 가능하게 하는 런타임 구성요소, 그들 간의 데이터 계약, 기대되는 하드웨어, 그리고 안전 설계를 다룬다. 이 문서는 시스템을 실행하기 **전에** 이해해야 하는 팀원을 위해 작성되었다.
+이 문서는 `cobot_ws` 워크스페이스의 최종 상태를 기술한다. 시스템이 무엇을 하는지, 그것을 가능하게 하는 런타임 구성요소, 그들 간의 데이터 계약, 기대되는 하드웨어, 그리고 안전 설계를 다룬다. 이 문서는 시스템을 실행하기 **전에** 이해해야 하는 팀원을 위해 작성되었다.
 
 ## 목차
 
@@ -23,7 +23,7 @@
 | `docs/cleanup_deletion_proposal.md` | 아카이브되었거나 제거 대상으로 표시된 파일에 대한 삭제 계획 |
 | `_archive_cleanup/<YYYYMMDD>/cleanup_manifest.md` | cleanup 배치별 manifest — 아카이브된 모든 파일에 대한 사유 / 근거 / 리스크 |
 
-설계 이력 파일들(`docs/_archive/run_manual.md`, `docs/_archive/voice_to_robot_integration_plan.md`, `docs/_archive/three_firebase_bridge_*.md`, `docs/_archive/nut_recommendation_*.md`, `docs/_archive/stt_db_tts_robot_integration.md`)은 위 네 개의 문서로 **대체**되어 `docs/_archive/`로 이전되었다. 이력 보존을 위해 git 트리에 남아 있지만 오래된 경로(`~/cobot_ws/...` vs 실제 `~/cobot2_ws/...`), 구식 캘리브레이션 값, 그리고 이미 도입된 통합에 대한 참조를 포함한다. 1차 레퍼런스로 사용하지 말 것.
+설계 이력 파일들(`docs/_archive/run_manual.md`, `docs/_archive/voice_to_robot_integration_plan.md`, `docs/_archive/three_firebase_bridge_*.md`, `docs/_archive/nut_recommendation_*.md`, `docs/_archive/stt_db_tts_robot_integration.md`)은 위 네 개의 문서로 **대체**되어 `docs/_archive/`로 이전되었다. 이력 보존을 위해 git 트리에 남아 있지만 구식 캘리브레이션 값과 이미 도입된 통합에 대한 참조를 포함한다. 1차 레퍼런스로 사용하지 말 것.
 
 `_archive_cleanup/<YYYYMMDD>/` 디렉토리(현재 `20260508/`)는 **활성 코드가 아니다**. 삭제 결정 보류 중인 파일들을 런타임 트리 밖으로 옮겨 보관한다. 거기에서 `source`, `colcon build`, `import` 또는 다른 어떤 실행도 하지 말 것. 아카이브의 목적은 활성 트리를 깨끗하게 유지하면서 git history를 보존하는 것이다. 삭제 계획은 `docs/cleanup_deletion_proposal.md`를 참고할 것.
 

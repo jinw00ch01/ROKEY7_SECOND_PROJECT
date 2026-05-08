@@ -231,7 +231,7 @@ stt_db_tts_robot_integration.md}`는 `docs/01_system_architecture.md`
 
 ```bash
 # Operate from workspace root
-cd ~/cobot2_ws
+cd ~/cobot_ws
 
 # Re-verify before deletion
 colcon build --symlink-install

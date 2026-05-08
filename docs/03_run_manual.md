@@ -43,7 +43,7 @@ legacy `docs/_archive/run_manual.md` 는 이 파일로 **대체**되어
 
 이 문서에서 사용하는 규칙:
 
-- 워크스페이스 경로는 `~/cobot2_ws`. 클론 위치가 다르다면 적절히 변경.
+- 워크스페이스 루트는 `~/cobot_ws`, cobot2 패키지 소스는 `~/cobot_ws/src/cobot2`. 클론 위치가 다르다면 적절히 변경.
 - 각 셸 명령은 **한 줄로 입력**해야 한다 — 긴 `ros2 launch …` 호출은
   터미널이 줄바꿈하면 깨진다 (bash 가 줄바꿈 지점에서 분할하고 나머지 인자를
   조용히 버린다).
@@ -55,7 +55,7 @@ legacy `docs/_archive/run_manual.md` 는 이 파일로 **대체**되어
 
 이 매뉴얼은 운영자에게 다음을 안내한다:
 
-1. 새 셸에서 `cobot2_ws` 워크스페이스 기동.
+1. 새 셸에서 `cobot_ws` 워크스페이스 기동.
 2. mock / dry-run 모드에서 시스템을 안전하게 검증 (로봇 동작 없음, 실제
    그리퍼 없음, 원하면 실제 카메라도 없음).
 3. 음성 → 추천 → 로봇 픽업 end-to-end 실행 트리거.
@@ -79,7 +79,7 @@ legacy `docs/_archive/run_manual.md` 는 이 파일로 **대체**되어
 - [ ] 사용하는 **모든** 터미널에서 ROS 환경을 source:
   ```bash
   source /opt/ros/humble/setup.bash
-  source ~/cobot2_ws/install/setup.bash
+  source ~/cobot_ws/install/setup.bash
   ```
 - [ ] `ROS_DOMAIN_ID` export (§3 참조).
 - [ ] 워크스페이스가 에러 없이 빌드됨 (§4 참조).
@@ -194,7 +194,7 @@ export ROS_DOMAIN_ID=99
 ```bash
 export ROS_DOMAIN_ID=99
 source /opt/ros/humble/setup.bash
-source ~/cobot2_ws/install/setup.bash
+source ~/cobot_ws/install/setup.bash
 # Optional: silence TTS during mock runs
 export COBOT_TTS_ENABLED=0
 ```
@@ -204,7 +204,7 @@ export COBOT_TTS_ENABLED=0
 ```bash
 export ROS_DOMAIN_ID=99
 source /opt/ros/humble/setup.bash
-source ~/cobot2_ws/install/setup.bash
+source ~/cobot_ws/install/setup.bash
 # .env file is auto-loaded by cobot_voice; you only need this if you
 # want a non-default location:
 # export COBOT_VOICE_ENV_PATH=/absolute/path/to/cobot_voice.env
@@ -217,7 +217,7 @@ source ~/cobot2_ws/install/setup.bash
 워크스페이스 루트에서:
 
 ```bash
-cd ~/cobot2_ws
+cd ~/cobot_ws
 colcon build --symlink-install
 source install/setup.bash
 ```
@@ -274,7 +274,7 @@ task 코드를 변경했을 때 항상 이 모드를 사용. 어떤 하드웨어
 #### T1 — mock 으로 전체 시스템
 
 ```bash
-source ~/cobot2_ws/install/setup.bash
+source ~/cobot_ws/install/setup.bash
 ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false enable_firebase_status_bridge:=false
 ```
 
@@ -300,19 +300,19 @@ launch 해야 한다 — 가장 쉬운 경로는 서브시스템을 개별 launc
 
 ```bash
 # T1 — robot stack only (mock backends), no perception
-source ~/cobot2_ws/install/setup.bash
+source ~/cobot_ws/install/setup.bash
 ros2 launch cobot_robot_control robot_control.launch.py
 ```
 
 ```bash
 # T2 — mock perception
-source ~/cobot2_ws/install/setup.bash
+source ~/cobot_ws/install/setup.bash
 ros2 run cobot_perception mock_perception_node
 ```
 
 ```bash
 # T3 — task manager (autostart false so we control trigger)
-source ~/cobot2_ws/install/setup.bash
+source ~/cobot_ws/install/setup.bash
 ros2 launch cobot_task_manager task_manager.launch.py
 ```
 
@@ -326,7 +326,7 @@ ros2 launch cobot_task_manager task_manager.launch.py
 #### T4 — 가짜 task sender
 
 ```bash
-source ~/cobot2_ws/install/setup.bash
+source ~/cobot_ws/install/setup.bash
 ros2 service call /task/start std_srvs/srv/Trigger "{}"
 ```
 
@@ -373,12 +373,12 @@ open 실패를 로깅하고 `serial_port=None` 으로 동작한다. 포트가 `N
 - T1 을 **file 모드**로 launch (그래야 task manager 가 실제로
   `latest_order.json` 을 소비):
   ```bash
-  source ~/cobot2_ws/install/setup.bash
-  ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false enable_firebase_status_bridge:=false order_source:=file file_order_path:=/home/aes/cobot2_ws/cobot_voice/output/latest_order.json
+  source ~/cobot_ws/install/setup.bash
+  ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false enable_firebase_status_bridge:=false order_source:=file file_order_path:=/home/aes/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json
   ```
   T1 로그에서 확인:
   ```
-  FileOrderProvider reading /home/aes/cobot2_ws/cobot_voice/output/latest_order.json
+  FileOrderProvider reading /home/aes/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json
   ```
   이 라인이 없다면 task manager 가 `mock` 으로 폴백한 것 —
   `order_source:=file` 인자와 launch 라인이 줄바꿈되지 않았는지 재확인.
@@ -391,8 +391,8 @@ open 실패를 로깅하고 `serial_port=None` 으로 동작한다. 포트가 `N
 end-to-end 통합을 검증하는 가장 빠른 방법:
 
 ```bash
-source ~/cobot2_ws/install/setup.bash
-~/cobot2_ws/scripts/voice_to_robot.py --text "피곤하고 집중이 안 돼서 많이 도움 필요해요"
+source ~/cobot_ws/install/setup.bash
+~/cobot_ws/src/cobot2/scripts/voice_to_robot.py --text "피곤하고 집중이 안 돼서 많이 도움 필요해요"
 ```
 
 기대되는 stdout:
@@ -407,7 +407,7 @@ dispatched      : True
 JSON 계약 확인:
 
 ```bash
-cat ~/cobot2_ws/cobot_voice/output/latest_order.json
+cat ~/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json
 ```
 
 `success: true` 와 비어있지 않은 `combo` 배열을 포함해야 한다. `request_id`
@@ -421,7 +421,7 @@ cat ~/cobot2_ws/cobot_voice/output/latest_order.json
 STT 대신 터미널 입력으로 프롬프트 흐름을 단계 진행:
 
 ```bash
-~/cobot2_ws/scripts/voice_to_robot.py --debug
+~/cobot_ws/src/cobot2/scripts/voice_to_robot.py --debug
 ```
 
 상태 및 강도 문자열을 입력하라는 프롬프트가 표시된다.
@@ -429,7 +429,7 @@ STT 대신 터미널 입력으로 프롬프트 흐름을 단계 진행:
 ### 6.4 마이크 모드 (전체 음성)
 
 ```bash
-~/cobot2_ws/scripts/voice_to_robot.py
+~/cobot_ws/src/cobot2/scripts/voice_to_robot.py
 ```
 
 1. wake word 발화 ("Hello Rokey" — 번들된 `hello_rokey_8332_32.tflite`
@@ -446,12 +446,12 @@ React web UI 에서 음성 흐름을 구동:
 # T1 — task manager + perception in file mode (as in §6.1)
 
 # T2 — local HTTP bridge for the web UI
-source ~/cobot2_ws/install/setup.bash
+source ~/cobot_ws/install/setup.bash
 ros2 run cobot_voice web_voice_bridge_server
 # Server listens on http://127.0.0.1:8765 (override with --host/--port)
 
 # T3 — Vite dev server for the UI
-cd ~/cobot2_ws/web_stt_firebase
+cd ~/cobot_ws/src/cobot2/web_stt_firebase
 npm install     # first time only
 npm run dev
 ```
@@ -463,7 +463,7 @@ web UI 의 시작 버튼은 `/voice-audio/start` 로 POST; bridge 가 동일한
 ### 6.6 로봇 트리거 건너뛰기 (검증만)
 
 ```bash
-~/cobot2_ws/scripts/voice_to_robot.py --text "..." --no-dispatch
+~/cobot_ws/src/cobot2/scripts/voice_to_robot.py --text "..." --no-dispatch
 ```
 
 `latest_order.json` 은 저장하지만 `/task/start` 는 호출하지 **않는다**.
@@ -494,7 +494,7 @@ ls /dev/ttyACM*           # Arduino conveyor
 #### T1 — Doosan bring-up
 
 ```bash
-source ~/cobot2_ws/install/setup.bash
+source ~/cobot_ws/install/setup.bash
 ros2 launch dsr_bringup2 dsr_bringup2_rviz.launch.py mode:=real host:=192.168.1.100 port:=12345
 ```
 
@@ -517,7 +517,7 @@ pkill -9 -f ros2_control_node
 #### T2 — RealSense
 
 ```bash
-source ~/cobot2_ws/install/setup.bash
+source ~/cobot_ws/install/setup.bash
 ros2 launch realsense2_camera rs_launch.py enable_color:=true enable_depth:=true align_depth.enable:=true
 ```
 
@@ -535,8 +535,8 @@ ros2 topic hz /camera/camera/aligned_depth_to_color/image_raw
 > **한 줄로** 입력/붙여넣기.
 
 ```bash
-source ~/cobot2_ws/install/setup.bash
-ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false dsr_mode:=real config_robot_control:=$(ros2 pkg prefix cobot_robot_control)/share/cobot_robot_control/config/robot_control.real.yaml order_source:=file file_order_path:=/home/aes/cobot2_ws/cobot_voice/output/latest_order.json
+source ~/cobot_ws/install/setup.bash
+ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false dsr_mode:=real config_robot_control:=$(ros2 pkg prefix cobot_robot_control)/share/cobot_robot_control/config/robot_control.real.yaml order_source:=file file_order_path:=/home/aes/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json
 ```
 
 인자에 대한 비고:
@@ -555,12 +555,12 @@ ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_rea
 - `Initializing Modbus RG2 at 192.168.1.1:502 (force=15.0N)`
 - `robot_control_node ready (action=/robot/pick_and_place)`
 - `Service /perception/detect_once ready`
-- `FileOrderProvider reading /home/aes/cobot2_ws/cobot_voice/output/latest_order.json`
+- `FileOrderProvider reading /home/aes/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json`
 
 #### T4 — 컨베이어 (실제 Arduino)
 
 ```bash
-source ~/cobot2_ws/install/setup.bash
+source ~/cobot_ws/install/setup.bash
 ros2 launch conveyor_controller conveyor_controller.launch.py
 ```
 
@@ -575,7 +575,7 @@ ros2 launch conveyor_controller conveyor_controller.launch.py
 #### T5 — 운영자 터미널 (sanity → 트리거)
 
 ```bash
-source ~/cobot2_ws/install/setup.bash
+source ~/cobot_ws/install/setup.bash
 
 # Live TCP read works?
 ros2 service call /robot/get_current_pose cobot_msgs/srv/GetCurrentPose "{}"
@@ -584,7 +584,7 @@ ros2 service call /robot/get_current_pose cobot_msgs/srv/GetCurrentPose "{}"
 ros2 service call /perception/detect_once cobot_msgs/srv/DetectOnce "{}"
 
 # Dry-run a single pick (prints, does not move the robot)
-~/cobot2_ws/scripts/pick_one.py cashew --dry-run
+~/cobot_ws/src/cobot2/scripts/pick_one.py cashew --dry-run
 ```
 
 위 점검이 정상이면:
@@ -592,7 +592,7 @@ ros2 service call /perception/detect_once cobot_msgs/srv/DetectOnce "{}"
 - **단일 너트** 테스트는 §8 참조.
 - 음성 구동 전체 픽업:
   ```bash
-  ~/cobot2_ws/scripts/voice_to_robot.py --text "피곤하고 집중이 안 돼서 많이"
+  ~/cobot_ws/src/cobot2/scripts/voice_to_robot.py --text "피곤하고 집중이 안 돼서 많이"
   ```
   또는 마이크 모드 (§6.4).
 
@@ -604,7 +604,7 @@ ros2 service call /perception/detect_once cobot_msgs/srv/DetectOnce "{}"
 뒤에는, 멀티 너트 세션 전에 **항상** 단일 너트 픽을 실행.
 
 ```bash
-~/cobot2_ws/scripts/pick_one.py cashew --dry-run
+~/cobot_ws/src/cobot2/scripts/pick_one.py cashew --dry-run
 ```
 
 출력된 `base_xyz` 가 합리적인지 확인 (워크스페이스 경계는
@@ -614,11 +614,11 @@ ros2 service call /perception/detect_once cobot_msgs/srv/DetectOnce "{}"
 그 후:
 
 ```bash
-~/cobot2_ws/scripts/pick_one.py cashew
+~/cobot_ws/src/cobot2/scripts/pick_one.py cashew
 # or, when tuning Z:
-~/cobot2_ws/scripts/pick_one.py cashew --z-override 315
+~/cobot_ws/src/cobot2/scripts/pick_one.py cashew --z-override 315
 # or, when tuning the gripper pre-position:
-~/cobot2_ws/scripts/pick_one.py cashew --pre-grasp-width 35
+~/cobot_ws/src/cobot2/scripts/pick_one.py cashew --pre-grasp-width 35
 ```
 
 T3 로그에서 액션 피드백 관찰:
@@ -765,7 +765,7 @@ ros2 service list -t
 rqt YOLO 오버레이 사용:
 
 ```bash
-~/cobot2_ws/scripts/yolo_rqt_view.py
+~/cobot_ws/src/cobot2/scripts/yolo_rqt_view.py
 # Then in another terminal:
 ros2 run rqt_image_view rqt_image_view /yolo/annotated
 ```
@@ -837,7 +837,7 @@ bring-up 의 역순. 목표는 암을 안전한 상태로 두고 좀비 프로�
   ```
 - STT 를 우회하고 실패를 격리하려면 텍스트 모드 사용:
   ```bash
-  ~/cobot2_ws/scripts/voice_to_robot.py --text "피곤해요"
+  ~/cobot_ws/src/cobot2/scripts/voice_to_robot.py --text "피곤해요"
   ```
 
 ### 12.2 키워드 추출 실패 (`categories` 없음)
@@ -858,15 +858,15 @@ bring-up 의 역순. 목표는 암을 안전한 상태로 두고 좀비 프로�
 
 - 경로 존재 확인:
   ```bash
-  ls -la ~/cobot2_ws/cobot_voice/output/
+  ls -la ~/cobot_ws/src/cobot2/cobot_voice/output/
   ```
 - dotenv 도달 가능 확인:
   ```bash
-  cat ~/cobot2_ws/cobot_voice/resource/.env       # should have OPENAI_API_KEY
+  cat ~/cobot_ws/src/cobot2/cobot_voice/resource/.env       # should have OPENAI_API_KEY
   ```
 - 로깅과 함께 실행:
   ```bash
-  ~/cobot2_ws/scripts/voice_to_robot.py --debug
+  ~/cobot_ws/src/cobot2/scripts/voice_to_robot.py --debug
   ```
   끝부분의 `[INFO] save_recommendation_order` 라인을 관찰.
 
@@ -1043,13 +1043,13 @@ discovery server 사용). 설정에 따라 **확인 필요**; 이 저장소는 �
 
 ```bash
 # Build + source
-cd ~/cobot2_ws && colcon build --symlink-install && source install/setup.bash
+cd ~/cobot_ws && colcon build --symlink-install && source install/setup.bash
 
 # Mock e2e (one terminal)
 ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false enable_firebase_status_bridge:=false
 
 # Real e2e (T1: dsr_bringup2; T2: realsense; T3: this)
-ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false dsr_mode:=real config_robot_control:=$(ros2 pkg prefix cobot_robot_control)/share/cobot_robot_control/config/robot_control.real.yaml order_source:=file file_order_path:=/home/aes/cobot2_ws/cobot_voice/output/latest_order.json
+ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false dsr_mode:=real config_robot_control:=$(ros2 pkg prefix cobot_robot_control)/share/cobot_robot_control/config/robot_control.real.yaml order_source:=file file_order_path:=/home/aes/cobot_ws/src/cobot2/cobot_voice/output/latest_order.json
 
 # Conveyor
 ros2 launch conveyor_controller conveyor_controller.launch.py
@@ -1058,11 +1058,11 @@ ros2 launch conveyor_controller conveyor_controller.launch.py
 ros2 service call /task/start std_srvs/srv/Trigger "{}"
 
 # Voice → robot end-to-end
-~/cobot2_ws/scripts/voice_to_robot.py --text "피곤하고 집중이 안 돼서 많이"
+~/cobot_ws/src/cobot2/scripts/voice_to_robot.py --text "피곤하고 집중이 안 돼서 많이"
 
 # Single nut
-~/cobot2_ws/scripts/pick_one.py cashew --dry-run
-~/cobot2_ws/scripts/pick_one.py cashew
+~/cobot_ws/src/cobot2/scripts/pick_one.py cashew --dry-run
+~/cobot_ws/src/cobot2/scripts/pick_one.py cashew
 
 # Status
 ros2 topic echo /task/status

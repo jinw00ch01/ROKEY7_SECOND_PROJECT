@@ -69,7 +69,7 @@ task-manager 코드를 수정할 때마다 위에서 아래로 따라간다.
 ### 2.1 패키지가 깨끗하게 빌드된다
 
 ```bash
-cd ~/cobot2_ws
+cd ~/cobot_ws
 colcon build --symlink-install
 source install/setup.bash
 ```
@@ -92,7 +92,7 @@ colcon test-result --verbose
 - `cobot_task_manager/test/test_pick_offsets.py`
 - `cobot_voice/`의 순수 Python 테스트(`pytest`로 직접 실행):
   ```bash
-  cd ~/cobot2_ws/cobot_voice
+  cd ~/cobot_ws/cobot_voice
   python3 -m pytest -q
   ```
   이는 `test_env.py`, `test_firebase_bridge.py`,
@@ -295,19 +295,19 @@ ros2 action info /robot/pick_and_place -t
 실제로 task manager까지 흘러가도록).
 
 ```bash
-ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false order_source:=file file_order_path:=/home/aes/cobot2_ws/cobot_voice/output/latest_order.json
+ros2 launch cobot_bringup full_system.launch.py task_autostart:=false enable_realsense:=false enable_dsr_bringup:=false order_source:=file file_order_path:=/home/aes/cobot_ws/cobot_voice/output/latest_order.json
 ```
 
 T1 task-manager 로그에 다음이 포함되는지 확인한다.
 
 ```
-FileOrderProvider reading /home/aes/cobot2_ws/cobot_voice/output/latest_order.json
+FileOrderProvider reading /home/aes/cobot_ws/cobot_voice/output/latest_order.json
 ```
 
 ### 4.1 TTS 프롬프트
 
 ```bash
-~/cobot2_ws/scripts/voice_to_robot.py --debug
+~/cobot_ws/scripts/voice_to_robot.py --debug
 ```
 
 첫 번째 prompt 단계에서 기대값:
@@ -327,7 +327,7 @@ FileOrderProvider reading /home/aes/cobot2_ws/cobot_voice/output/latest_order.js
 
 - **STT 우회**(가장 빠른 sanity 체크):
   ```bash
-  ~/cobot2_ws/scripts/voice_to_robot.py --text "피곤하고 집중이 안 돼서 많이"
+  ~/cobot_ws/scripts/voice_to_robot.py --text "피곤하고 집중이 안 돼서 많이"
   ```
   기대 stdout:
   ```
@@ -339,7 +339,7 @@ FileOrderProvider reading /home/aes/cobot2_ws/cobot_voice/output/latest_order.js
 
 - **실제 Whisper**(마이크 경로):
   ```bash
-  ~/cobot2_ws/scripts/voice_to_robot.py
+  ~/cobot_ws/scripts/voice_to_robot.py
   ```
   기대값: 5 s 녹음 윈도우마다 콘솔에 `STT 결과: <Korean text>`가
   출력된다. 실패는 보통 Whisper API 예외로 드러난다.
@@ -349,7 +349,7 @@ FileOrderProvider reading /home/aes/cobot2_ws/cobot_voice/output/latest_order.js
 4.2 단계 후 JSON을 점검한다.
 
 ```bash
-cat ~/cobot2_ws/cobot_voice/output/latest_order.json
+cat ~/cobot_ws/cobot_voice/output/latest_order.json
 ```
 
 필수 필드와 제약:
@@ -397,10 +397,10 @@ file 모드에서는 `/task/start` 후 `/task/status` 로그 라인으로
 ### 4.5 `latest_order.json`이 존재하고 유효하다
 
 ```bash
-ls -la ~/cobot2_ws/cobot_voice/output/latest_order.json
+ls -la ~/cobot_ws/cobot_voice/output/latest_order.json
 python3 -c "
 import json
-d = json.load(open('/home/aes/cobot2_ws/cobot_voice/output/latest_order.json'))
+d = json.load(open('/home/aes/cobot_ws/cobot_voice/output/latest_order.json'))
 assert d.get('success') is True, 'success must be true'
 assert d.get('combo'), 'combo empty'
 assert all(c['nut'] in {'almond','cashew','pistachio','walnut'} for c in d['combo']), 'bad nut name'
@@ -446,7 +446,7 @@ ros2 service call /task/start std_srvs/srv/Trigger "{}"
 
 ```bash
 # Stash the real one
-cp ~/cobot2_ws/cobot_voice/output/latest_order.json /tmp/good_order.json
+cp ~/cobot_ws/cobot_voice/output/latest_order.json /tmp/good_order.json
 
 # Write a deliberately-failing order
 python3 - <<'PY'
@@ -460,7 +460,7 @@ out = {
     "combo_text": "",
     "success": False,
 }
-json.dump(out, open("/home/aes/cobot2_ws/cobot_voice/output/latest_order.json", "w"), ensure_ascii=False, indent=2)
+json.dump(out, open("/home/aes/cobot_ws/cobot_voice/output/latest_order.json", "w"), ensure_ascii=False, indent=2)
 print("wrote invalid order")
 PY
 
@@ -470,7 +470,7 @@ ros2 service call /task/start std_srvs/srv/Trigger "{}"
 ros2 topic echo /task/result --once
 
 # Restore the good order before continuing
-cp /tmp/good_order.json ~/cobot2_ws/cobot_voice/output/latest_order.json
+cp /tmp/good_order.json ~/cobot_ws/cobot_voice/output/latest_order.json
 ```
 
 기대값: 주문이 fetch 시점에 거부되며 `/task/result`에 `failure
@@ -616,7 +616,7 @@ ros2 action info /robot/pick_and_place
 helper 스크립트로 dry-run 타겟을 보낸다.
 
 ```bash
-~/cobot2_ws/scripts/pick_one.py cashew --dry-run
+~/cobot_ws/scripts/pick_one.py cashew --dry-run
 ```
 
 기대값: 해결된 goal(`base_xyz`, `grasp_yaw`,
@@ -628,7 +628,7 @@ helper 스크립트로 dry-run 타겟을 보낸다.
 `--dry-run` 없이 액션 서버는 모든 단계를 진행한다. launch 터미널을 본다.
 
 ```bash
-~/cobot2_ws/scripts/pick_one.py cashew
+~/cobot_ws/scripts/pick_one.py cashew
 ```
 
 기대 단계 피드백(mock 백엔드는 각 단계를 즉시 완료):
@@ -809,7 +809,7 @@ Ignoring place_ready trigger while conveyor auto-run is active
 - [ ] **워크스페이스 정리**: approach / transit / return 경로에
   손가락, 케이블, 공구 없음; 컨베이어 벨트 정리.
 - [ ] **Pick offset 최신**:
-  `cat ~/cobot2_ws/cobot_config/config/pick_offsets.yaml`이 가장 최근의
+  `cat ~/cobot_ws/cobot_config/config/pick_offsets.yaml`이 가장 최근의
   성공한 튜닝과 일치한다.
 - [ ] **Real config 선택됨**:
   `config_robot_control:=...robot_control.real.yaml`이 launch 명령줄에
@@ -817,7 +817,7 @@ Ignoring place_ready trigger while conveyor auto-run is active
   `Initializing Modbus RG2 at 192.168.1.1:502`를 보여준다.
 - [ ] **단일 너트 dry-run 먼저**:
   비-dry-run 명령이 실행되기 **전에**
-  `~/cobot2_ws/scripts/pick_one.py <class> --dry-run`이 합리적인 base
+  `~/cobot_ws/scripts/pick_one.py <class> --dry-run`이 합리적인 base
   좌표를 반환한다(`docs/03_run_manual.md` §8 참조).
 - [ ] **오늘 mock dry-run 통과** — §7의 모든 항목이 동일 세션에서
   체크됨.
@@ -851,10 +851,10 @@ Ignoring place_ready trigger while conveyor auto-run is active
   `[conveyor_start]/[conveyor_stop]`이 있다; 유지된 `true`는
   재트리거하지 않는다.
 - [ ] **실제 하드웨어 사전 점검 (§9)** — 모든 체크박스 체크됨.
-- [ ] **단일 너트 실제 테스트** — `~/cobot2_ws/scripts/pick_one.py <class>`가
+- [ ] **단일 너트 실제 테스트** — `~/cobot_ws/scripts/pick_one.py <class>`가
   취소 없이 선택한 클래스에 대해 성공하며, 복귀 자세 place_ready edge가
   컨베이어를 정확히 한 번 발화시킨다.
-- [ ] **다중 너트 task** — `~/cobot2_ws/scripts/voice_to_robot.py
+- [ ] **다중 너트 task** — `~/cobot_ws/scripts/voice_to_robot.py
   --text "..."`(또는 마이크 동등물)이 전체 루프를 `[state] done`까지
   구동하고 `/task/result success counts={...}`가 된다. 소비된 모든
   너트가 정확히 한 번의 컨베이어 advance를 발생시킨다.
