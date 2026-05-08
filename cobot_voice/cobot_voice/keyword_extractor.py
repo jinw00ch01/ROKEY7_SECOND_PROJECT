@@ -12,7 +12,6 @@ from pathlib import Path
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import PromptTemplate
 
-from cobot_voice.nut_recommendation import recommend_nuts
 from cobot_voice.object_aliases import NUT_KEYWORD_MAP, NUT_NAMES, find_nut_targets
 
 
@@ -116,27 +115,26 @@ class KeywordExtractor:
 
 def build_latest_order(text: str):
     from cobot_voice.env import get_required_env
-    from cobot_voice.keyword_extractor import StateAnalyzer, IntensityAnalyzer
+    from cobot_voice.keyword_extractor import JobAnalyzer, SatietyAnalyzer
     api_key = get_required_env("OPENAI_API_KEY")
     
-    # Analyze state using AI
-    state_analyzer = StateAnalyzer(openai_api_key=api_key)
-    state_result = state_analyzer.analyze(text)
+    # Analyze job using AI
+    job_analyzer = JobAnalyzer(openai_api_key=api_key)
+    job_result = job_analyzer.analyze(text)
     
-    category = state_result.get("category")
-    categories = [category] if category else []
-    reasoning = state_result.get("reasoning_message", "")
+    categories = job_result.get("recommended_nuts", [])
+    reasoning = job_result.get("reasoning_message", "")
     
-    # Default intensity
+    # Default intensity (satiety)
     intensity = "normal"
     
     if categories:
-        intensity_analyzer = IntensityAnalyzer(openai_api_key=api_key)
-        intensity_result = intensity_analyzer.analyze(text)
-        intensity = intensity_result.get("intensity", "normal")
+        satiety_analyzer = SatietyAnalyzer(openai_api_key=api_key)
+        satiety_result = satiety_analyzer.analyze(text)
+        intensity = satiety_result.get("satiety", "normal")
         # Combine reasoning if both exist
-        if intensity_result.get("reasoning_message"):
-            reasoning += " " + intensity_result.get("reasoning_message")
+        if satiety_result.get("reasoning_message"):
+            reasoning += " " + satiety_result.get("reasoning_message")
 
     from cobot_voice.nut_recommendation import (
         build_combo,
@@ -145,9 +143,8 @@ def build_latest_order(text: str):
         _get_config_dir,
     )
     config_dir = _get_config_dir()
-    categories_config = load_json(config_dir / "keyword_categories.json")
     combo_rules = load_json(config_dir / "nut_combo_rules.json")
-    combo = build_combo(categories, intensity, combo_rules, categories_config)
+    combo = build_combo(categories, intensity, combo_rules)
     combo_text = format_combo_text(combo)
     
     order = build_latest_order_from_recommendation({
@@ -266,50 +263,51 @@ def save_recommendation_order(recommendation, output_path=DEFAULT_OUTPUT_PATH):
     order = build_latest_order_from_recommendation(recommendation)
     return save_latest_order_data(order, output_path)
 
-STATE_ANALYZER_PROMPT = """
-사용자의 기분, 상태, 또는 목적을 나타내는 문장을 분석하여, 가장 적절한 카테고리를 하나 선택하고 판단 근거와 함께 어떤 견과류를 준비할지 자연스러운 안내 멘트를 작성해주세요.
+JOB_ANALYZER_PROMPT = """
+사용자의 직업을 묻는 질문에 대한 답변을 분석하여, 직업 특성에 맞는 견과류를 1가지에서 최대 4가지까지 추천하고 판단 근거와 함께 안내 멘트를 작성해주세요.
 
-<선택 가능한 카테고리>
-- fatigue (피로/회복) -> 캐슈넛
-- blood_sugar (혈당 관리) -> 아몬드
-- diet (다이어트/체중) -> 피스타치오
-- focus (집중/두뇌) -> 호두
+<추천 가능한 견과류 종류>
+- almond (아몬드)
+- cashew (캐슈넛)
+- pistachio (피스타치오)
+- walnut (호두)
 
 <출력 형식 (반드시 JSON 형식으로 출력)>
 {{
-  "category": "fatigue",
-  "reasoning_message": "요즘 많이 피곤하시군요. 피로 회복에 도움을 주는 캐슈넛을 준비해 드릴게요."
+  "job": "교사",
+  "recommended_nuts": ["walnut", "cashew"],
+  "reasoning_message": "말씀을 많이 하시고 에너지가 필요하신 교사분이군요. 두뇌 회전에 좋은 호두와 피로 회복을 돕는 캐슈넛을 준비해 드릴게요."
 }}
 
 <사용자 입력>
 "{user_input}"
 """
 
-INTENSITY_ANALYZER_PROMPT = """
-사용자가 원하는 견과류의 양을 나타내는 문장을 분석하여, 양(강도)을 판단하고 판단 근거와 결과를 포함한 자연스러운 안내 멘트를 작성해주세요.
+SATIETY_ANALYZER_PROMPT = """
+사용자의 현재 포만감을 나타내는 문장을 분석하여, 포만감 수준을 판단하고 판단 근거와 결과를 포함한 자연스러운 안내 멘트를 작성해주세요.
 
-<양 판단 기준>
-- low (적게): 1개 (예: 조금, 맛만, 하나만)
-- normal (보통): 2개 (예: 적당히, 보통, 알아서)
-- high (많이): 3개 이상 (예: 많이, 듬뿍, 왕창)
+<포만감 수준 기준 (출력되는 satiety 값에 유의하세요)>
+- 적음/배고픔 (견과류 3개씩 제공): low
+- 보통/적당함 (견과류 2개씩 제공): normal
+- 많음/배부름 (견과류 1개씩 제공): high
 
 <출력 형식 (반드시 JSON 형식으로 출력)>
 {{
-  "intensity": "high",
-  "reasoning_message": "기운이 팍팍 나도록 넉넉하게 준비해 드릴게요."
+  "satiety": "low",
+  "reasoning_message": "많이 출출하시군요. 든든하게 드실 수 있도록 넉넉히 준비해 드릴게요."
 }}
 
 <사용자 입력>
 "{user_input}"
 """
 
-class StateAnalyzer:
+class JobAnalyzer:
     def __init__(self, openai_api_key):
         self.llm = ChatOpenAI(
             model="gpt-4o", temperature=0.2, openai_api_key=openai_api_key
         )
         self.prompt_template = PromptTemplate(
-            input_variables=["user_input"], template=STATE_ANALYZER_PROMPT
+            input_variables=["user_input"], template=JOB_ANALYZER_PROMPT
         )
         self.chain = self.prompt_template | self.llm
 
@@ -323,16 +321,16 @@ class StateAnalyzer:
                 content = content[3:-3].strip()
             return json.loads(content)
         except json.JSONDecodeError:
-            logger.error("Failed to parse StateAnalyzer JSON response: %s", response.content)
-            return {"category": "", "reasoning_message": "잘 알아듣지 못했지만, 기본 견과류를 준비해 드릴게요."}
+            logger.error("Failed to parse JobAnalyzer JSON response: %s", response.content)
+            return {"job": "알 수 없음", "recommended_nuts": ["almond"], "reasoning_message": "잘 알아듣지 못했지만, 기본 견과류를 준비해 드릴게요."}
 
-class IntensityAnalyzer:
+class SatietyAnalyzer:
     def __init__(self, openai_api_key):
         self.llm = ChatOpenAI(
             model="gpt-4o", temperature=0.2, openai_api_key=openai_api_key
         )
         self.prompt_template = PromptTemplate(
-            input_variables=["user_input"], template=INTENSITY_ANALYZER_PROMPT
+            input_variables=["user_input"], template=SATIETY_ANALYZER_PROMPT
         )
         self.chain = self.prompt_template | self.llm
 
@@ -346,5 +344,5 @@ class IntensityAnalyzer:
                 content = content[3:-3].strip()
             return json.loads(content)
         except json.JSONDecodeError:
-            logger.error("Failed to parse IntensityAnalyzer JSON response: %s", response.content)
-            return {"intensity": "normal", "reasoning_message": "보통 양으로 준비해 드릴게요."}
+            logger.error("Failed to parse SatietyAnalyzer JSON response: %s", response.content)
+            return {"satiety": "normal", "reasoning_message": "보통 양으로 준비해 드릴게요."}

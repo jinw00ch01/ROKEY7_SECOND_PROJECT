@@ -82,6 +82,22 @@ const DISPLAY_COPY: Record<
     headline: "응답 중",
     message: "맞춤 견과류 콤보를 준비합니다.",
   },
+  asking_job: {
+    headline: "직업 확인",
+    message: "당신의 직업은 무엇인가요?",
+  },
+  listening_job: {
+    headline: "듣는 중",
+    message: "직업을 듣고 있어요.",
+  },
+  asking_satiety: {
+    headline: "포만감 확인",
+    message: "포만감은 어느 정도인가요?",
+  },
+  listening_satiety: {
+    headline: "듣는 중",
+    message: "포만감을 듣고 있어요.",
+  },
   asking_state: {
     headline: "컨디션 확인",
     message: "오늘 컨디션은 어떤가요?",
@@ -124,8 +140,8 @@ const PROGRESS_STEPS: Array<{
   states: DisplayState[];
 }> = [
   { label: "호출", states: ["idle", "wake_detected"] },
-  { label: "상태 질문", states: ["asking_state", "listening_state"] },
-  { label: "강도 질문", states: ["asking_intensity", "listening_intensity"] },
+  { label: "직업 질문", states: ["asking_job", "listening_job", "asking_state", "listening_state"] },
+  { label: "포만감 질문", states: ["asking_satiety", "listening_satiety", "asking_intensity", "listening_intensity"] },
   { label: "추천", states: ["recommending", "result_ready"] },
   { label: "로봇 준비", states: ["dispatching"] },
   { label: "완료", states: ["completed"] },
@@ -252,10 +268,10 @@ function resolveSessionTheme(session: RobotSession): RobotSessionTheme {
 
 function mapDisplayStateToSceneMode(state: DisplayState): RobotMode {
   if (state === "wake_detected") return "wake_detected";
-  if (state === "asking_state") return "speaking";
-  if (state === "listening_state") return "listening";
-  if (state === "asking_intensity") return "speaking";
-  if (state === "listening_intensity") return "listening";
+  if (state === "asking_state" || state === "asking_job") return "speaking";
+  if (state === "listening_state" || state === "listening_job") return "listening";
+  if (state === "asking_intensity" || state === "asking_satiety") return "speaking";
+  if (state === "listening_intensity" || state === "listening_satiety") return "listening";
   if (state === "recommending") return "processing";
   if (state === "result_ready") return "processing";
   if (state === "dispatching") return "processing";
@@ -285,7 +301,7 @@ function FixedCamera() {
 
 function getLightIntensity(state: DisplayState) {
   if (state === "wake_detected") return 1.25;
-  if (state === "listening_state" || state === "listening_intensity") return 1.55;
+  if (state === "listening_state" || state === "listening_intensity" || state === "listening_job" || state === "listening_satiety") return 1.55;
   if (state === "recommending") return 1.7;
   if (state === "result_ready") return 1.45;
   if (state === "dispatching") return 1.6;
@@ -374,7 +390,9 @@ export default function App() {
   const transcriptDisplay = showTranscript(robotSession.transcript);
   const isListening =
     robotSession.display_state === "listening_state" ||
-    robotSession.display_state === "listening_intensity";
+    robotSession.display_state === "listening_intensity" ||
+    robotSession.display_state === "listening_job" ||
+    robotSession.display_state === "listening_satiety";
   const isLoading = robotSession.display_state === "recommending";
 
   return (

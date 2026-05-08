@@ -259,6 +259,7 @@ def publish_recommendation_result(order):
 
     return update_display_state(
         "result_ready",
+        question="",
         transcript=str(order.get("recognized_text", "") if isinstance(order, dict) else ""),
         categories=list(categories),
         intensity=str(order.get("intensity", "normal") if isinstance(order, dict) else "normal"),
@@ -273,6 +274,7 @@ def publish_recommendation_result(order):
 
 def publish_dispatching(order=None):
     fields = {
+        "question": "",
         "error": "",
     }
     if isinstance(order, dict):
@@ -296,6 +298,7 @@ def publish_dispatching(order=None):
 
 def publish_completed(order=None):
     fields = {
+        "question": "",
         "error": "",
     }
     if isinstance(order, dict):

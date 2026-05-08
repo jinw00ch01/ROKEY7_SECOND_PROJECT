@@ -17,7 +17,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from cobot_voice.keyword_extractor import DEFAULT_OUTPUT_PATH, save_recommendation_order, StateAnalyzer, IntensityAnalyzer
+from cobot_voice.keyword_extractor import DEFAULT_OUTPUT_PATH, save_recommendation_order, JobAnalyzer, SatietyAnalyzer
 from cobot_voice.env import load_package_env
 from cobot_voice.firebase_bridge import (
     build_theme,
@@ -33,8 +33,6 @@ from cobot_voice.firebase_bridge import (
 from cobot_voice.nut_recommendation import (
     _get_config_dir,
     build_combo,
-    extract_categories,
-    extract_intensity,
     format_combo_text,
     load_json,
 )
@@ -75,13 +73,13 @@ _MENU_INTENSITY_CHOICES = (
     ("high",   ("3", "3번", "삼번", "high",   "많이", "듬뿍", "잔뜩", "왕창", "강하")),
 )
 
-_MENU_ASK_STATE = (
-    "오늘 컨디션을 골라주세요. "
-    "1번 피로, 2번 혈당, 3번 다이어트, 4번 집중. "
+_MENU_ASK_JOB = (
+    "당신의 직업을 골라주세요. "
+    "1번 교사, 2번 개발자, 3번 운동선수, 4번 학생. "
     "번호나 키워드로 답해주세요."
 )
-_MENU_ASK_INTENSITY = (
-    "정도를 골라주세요. 1번 약하게, 2번 보통, 3번 많이. "
+_MENU_ASK_SATIETY = (
+    "포만감을 골라주세요. 1번 적음, 2번 보통, 3번 배부름. "
     "번호나 키워드로 답해주세요."
 )
 
@@ -324,27 +322,6 @@ def wait_for_wake_word_with_optional_mic(wakeup, mic=None, should_continue=None)
             mic.close_stream()
 
 
-def build_recommendation_from_parts(state_text, intensity_text):
-    config_dir = _get_config_dir()
-    categories_config = load_json(config_dir / "keyword_categories.json")
-    combo_rules = load_json(config_dir / "nut_combo_rules.json")
-
-    categories = extract_categories(state_text, categories_config)
-    intensity = extract_intensity(intensity_text)
-    combo = build_combo(categories, intensity, combo_rules, categories_config)
-
-    recognized_text = " ".join(
-        part for part in (state_text.strip(), intensity_text.strip()) if part
-    )
-
-    return {
-        "recognized_text": recognized_text,
-        "categories": categories,
-        "intensity": intensity,
-        "combo": combo,
-        "combo_text": format_combo_text(combo),
-    }
-
 
 def _prompt_mode():
     load_package_env()
@@ -375,20 +352,15 @@ def _match_menu_choice(text, choices):
     return None
 
 
-def _resolve_state(text, openai_api_key, mode):
-    if mode == PROMPT_MODE_MENU:
-        canonical = _match_menu_choice(text, _MENU_STATE_CHOICES)
-        if canonical:
-            return {"category": canonical, "reasoning_message": ""}
-    return StateAnalyzer(openai_api_key).analyze(text)
+def _resolve_job(text, openai_api_key, mode):
+    # Job/Satiety logic relies on AI so we bypass the old menu mode logic here, or just keep it as fallback
+    # For now, we will rely entirely on AI for Job since it's freeform.
+    return JobAnalyzer(openai_api_key).analyze(text)
 
 
-def _resolve_intensity(text, openai_api_key, mode):
-    if mode == PROMPT_MODE_MENU:
-        canonical = _match_menu_choice(text, _MENU_INTENSITY_CHOICES)
-        if canonical:
-            return {"intensity": canonical, "reasoning_message": ""}
-    return IntensityAnalyzer(openai_api_key).analyze(text)
+def _resolve_satiety(text, openai_api_key, mode):
+    # Rely entirely on AI for Satiety.
+    return SatietyAnalyzer(openai_api_key).analyze(text)
 
 
 def run_recommendation_flow(
@@ -427,12 +399,15 @@ def run_recommendation_flow(
         speak(wake_response)
 
         mode = _prompt_mode()
-        ask_state = _MENU_ASK_STATE if mode == PROMPT_MODE_MENU else get_message("ask_state")
-        publish_question(ask_state, "asking_state")
-        speak(ask_state)
-        update_display_state("listening_state")
-        state_text = listen_text(stt=stt, debug=debug, prompt="상태")
-        publish_transcript(state_text)
+        ask_job = _MENU_ASK_JOB if mode == PROMPT_MODE_MENU else get_message("ask_job")
+        publish_question(ask_job, "asking_job")
+        
+        clean_ask_job = ask_job.replace("샤갈! ", "").replace("샤갈!", "").strip()
+        speak(clean_ask_job)
+        
+        update_display_state("listening_job")
+        job_text = listen_text(stt=stt, debug=debug, prompt="직업")
+        publish_transcript(job_text)
 
 
         load_package_env()
@@ -440,88 +415,80 @@ def run_recommendation_flow(
         if not openai_api_key:
             logger.warning("OPENAI_API_KEY is missing. AI analysis might fail.")
 
-        state_result = _resolve_state(state_text, openai_api_key, mode)
+        job_result = _resolve_job(job_text, openai_api_key, mode)
 
-        # Menu mode에서는 LLM을 거치지 않으므로 매칭 실패 시 한 번 재시도하여
-        # 사용자에게 다시 번호/키워드를 입력받는다.
-        # Menu mode: validate the parse, retry once on miss before bailing.
-        if mode == PROMPT_MODE_MENU and not state_result.get("category"):
-            retry_prompt = get_message("retry_state")
-            publish_question(retry_prompt, "asking_state")
+        if mode == PROMPT_MODE_MENU and not job_result.get("recommended_nuts"):
+            retry_prompt = get_message("retry_job")
+            publish_question(retry_prompt, "asking_job")
             speak(retry_prompt)
-            update_display_state("listening_state")
-            retry_text = listen_text(stt=stt, debug=debug, prompt="상태")
-            publish_transcript(" ".join(p for p in (state_text, retry_text) if p))
-            state_text = " ".join(p for p in (state_text, retry_text) if p).strip()
-            state_result = _resolve_state(retry_text, openai_api_key, mode)
+            update_display_state("listening_job")
+            retry_text = listen_text(stt=stt, debug=debug, prompt="직업")
+            publish_transcript(" ".join(p for p in (job_text, retry_text) if p))
+            job_text = " ".join(p for p in (job_text, retry_text) if p).strip()
+            job_result = _resolve_job(retry_text, openai_api_key, mode)
 
-        category = state_result.get("category", "")
-        categories = [category] if category else []
-        reasoning_message = state_result.get("reasoning_message", "상태를 파악하기 어렵네요.")
+        categories = job_result.get("recommended_nuts", [])
+        reasoning_message = job_result.get("reasoning_message", "직업을 파악하기 어렵네요.")
 
         if not categories:
-            logger.info("AI could not determine category; saving unsuccessful order.")
+            logger.info("AI could not determine nuts; saving unsuccessful order.")
             recommendation = {
-                "recognized_text": state_text,
+                "recognized_text": job_text,
                 "categories": [],
                 "intensity": "normal",
                 "combo": [],
                 "combo_text": "",
             }
             order = save_recommendation_order(recommendation)
-            publish_error("상태 카테고리를 찾지 못했습니다.")
+            publish_error("직업에 따른 견과류를 찾지 못했습니다.")
             speak(reasoning_message)
             return order
 
         update_display_state(
-            "asking_intensity",
+            "asking_satiety",
             categories=categories,
             theme=build_theme(categories, []),
         )
-        # UI에는 핵심 질문만 표시 (예: "얼마나 드릴까요?")
-        # TTS로는 AI의 판단 근거를 포함하여 상세히 설명 (freeform mode).
-        # Menu mode skips the LLM-reasoning prefix and asks the explicit menu.
         if mode == PROMPT_MODE_MENU:
-            simple_prompt = _MENU_ASK_INTENSITY
+            simple_prompt = _MENU_ASK_SATIETY
             combined_tts_message = simple_prompt
         else:
-            simple_prompt = get_message("ask_intensity")
-            combined_tts_message = reasoning_message + " " + simple_prompt
+            simple_prompt = get_message("ask_satiety")
+            clean_simple_prompt = simple_prompt.replace("샤갈! ", "").replace("샤갈!", "").strip()
+            combined_tts_message = f"샤갈! {reasoning_message} {clean_simple_prompt}"
 
-        publish_question(simple_prompt, "asking_intensity")
+        publish_question(simple_prompt, "asking_satiety")
         speak(combined_tts_message)
 
-        update_display_state("listening_intensity")
-        intensity_text = listen_text(stt=stt, debug=debug, prompt="강도")
-        publish_transcript(" ".join(part for part in (state_text, intensity_text) if part))
+        update_display_state("listening_satiety")
+        satiety_text = listen_text(stt=stt, debug=debug, prompt="포만감")
+        publish_transcript(" ".join(part for part in (job_text, satiety_text) if part))
 
-        intensity_result = _resolve_intensity(intensity_text, openai_api_key, mode)
+        satiety_result = _resolve_satiety(satiety_text, openai_api_key, mode)
 
-        # Menu mode: validate intensity parse, retry once on miss.
-        if mode == PROMPT_MODE_MENU and not intensity_result.get("intensity"):
-            retry_prompt = get_message("retry_intensity")
-            publish_question(retry_prompt, "asking_intensity")
+        if mode == PROMPT_MODE_MENU and not satiety_result.get("satiety"):
+            retry_prompt = get_message("retry_satiety")
+            publish_question(retry_prompt, "asking_satiety")
             speak(retry_prompt)
-            update_display_state("listening_intensity")
-            retry_text = listen_text(stt=stt, debug=debug, prompt="강도")
+            update_display_state("listening_satiety")
+            retry_text = listen_text(stt=stt, debug=debug, prompt="포만감")
             publish_transcript(
-                " ".join(p for p in (state_text, intensity_text, retry_text) if p)
+                " ".join(p for p in (job_text, satiety_text, retry_text) if p)
             )
-            intensity_text = " ".join(p for p in (intensity_text, retry_text) if p).strip()
-            intensity_result = _resolve_intensity(retry_text, openai_api_key, mode)
+            satiety_text = " ".join(p for p in (satiety_text, retry_text) if p).strip()
+            satiety_result = _resolve_satiety(retry_text, openai_api_key, mode)
 
-        intensity = intensity_result.get("intensity", "normal")
-        intensity_reasoning = intensity_result.get("reasoning_message", "적당량으로 준비해 드릴게요.")
+        intensity = satiety_result.get("satiety", "normal")
+        satiety_reasoning = satiety_result.get("reasoning_message", "적당량으로 준비해 드릴게요.")
 
         update_display_state("recommending")
         
         config_dir = _get_config_dir()
-        categories_config = load_json(config_dir / "keyword_categories.json")
         combo_rules = load_json(config_dir / "nut_combo_rules.json")
-        combo = build_combo(categories, intensity, combo_rules, categories_config)
+        combo = build_combo(categories, intensity, combo_rules)
 
         recommendation = {
-            "recognized_text": " ".join(part for part in (state_text, intensity_text) if part),
+            "recognized_text": " ".join(part for part in (job_text, satiety_text) if part),
             "categories": categories,
             "intensity": intensity,
             "combo": combo,
@@ -532,7 +499,8 @@ def run_recommendation_flow(
         if order["success"]:
             # 최종 확인 단계도 마찬가지로 UI는 깔끔하게, 목소리는 상세하게
             simple_confirm = get_message('confirm_template', combo_text=order['combo_text'])
-            combined_confirm_tts = intensity_reasoning + " " + simple_confirm
+            clean_simple_confirm = simple_confirm.replace("샤갈! ", "").replace("샤갈!", "").strip()
+            combined_confirm_tts = f"샤갈! {satiety_reasoning} {clean_simple_confirm}"
             
             order["confirm_message"] = simple_confirm # 화면에는 간결하게
             publish_recommendation_result(order)

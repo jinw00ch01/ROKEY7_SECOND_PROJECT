@@ -17,8 +17,12 @@ export type DisplayState =
   | "wake_detected"
   | "asking_state"
   | "listening_state"
+  | "asking_job"
+  | "listening_job"
   | "asking_intensity"
   | "listening_intensity"
+  | "asking_satiety"
+  | "listening_satiety"
   | "recommending"
   | "result_ready"
   | "dispatching"
@@ -48,6 +52,8 @@ export type RobotSession = {
   display_state: DisplayState;
   question: string;
   transcript: string;
+  job?: string;
+  satiety?: string;
   categories: CategoryId[];
   intensity: Intensity;
   combo: NutComboItem[];

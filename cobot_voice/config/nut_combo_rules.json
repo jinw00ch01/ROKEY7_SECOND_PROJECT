@@ -1,10 +1,10 @@
 {
   "intensity_counts": {
-    "low": 1,
+    "low": 3,
     "normal": 2,
-    "high": 3
+    "high": 1
   },
-  "max_total_count": 6,
+  "max_total_count": 20,
   "single_category_rules": {
     "description": "Use the category's recommended nut with count from intensity_counts.",
     "count_source": "intensity_counts",
