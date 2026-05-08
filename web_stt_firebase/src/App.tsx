@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { useEffect, useMemo, useRef } from "react";
 import * as THREE from "three";
 import { Terrain } from "./components/Terrain";
+import { NutEncyclopedia } from "./components/NutEncyclopedia";
 import type { ColorCommand } from "./components/terrain/colorThemes";
 import { useBrowserVoiceCommand } from "./hooks/useBrowserVoiceCommand";
 import { useRobotSession } from "./hooks/useRobotSession";
@@ -423,8 +424,9 @@ export default function App() {
             border: `1px solid ${themeStyle.borderColor}`,
             borderRadius: 8,
             marginTop: 14,
-            maxWidth: 440,
+            width: 440,
             padding: "14px 16px",
+            boxSizing: "border-box",
           }}
         >
           <p
@@ -566,6 +568,7 @@ export default function App() {
         {voiceErrorMessage ? <p>Voice error: {voiceErrorMessage}</p> : null}
         <p>Active Nut: {activeNut || "none"}</p>
         <p>Color: {terrainColorCommand.toUpperCase()}</p>
+        <NutEncyclopedia themeStyle={themeStyle} />
       </div>
     </div>
   );
