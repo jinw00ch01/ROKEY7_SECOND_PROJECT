@@ -495,15 +495,24 @@ ls /dev/ttyACM*           # Arduino conveyor
 
 ```bash
 source ~/cobot_ws/install/setup.bash
-ros2 launch dsr_bringup2 dsr_bringup2_rviz.launch.py mode:=real host:=192.168.1.100 port:=12345
+ros2 launch dsr_bringup2 dsr_bringup2_rviz.launch.py mode:=real model:=m0609 host:=192.168.1.100 port:=12345
 ```
 
 다음 대기:
 
+- `model : m0609` (hw_interface init 라인) — m1013 으로 떠있으면 stop 후 인자 재확인.
 - `Connected to DRCF`
 - `ROBOT_STATE : STATE_STANDBY`
 - `Configured and activated dsr_controller2`
 - `Configured and activated joint_state_broadcaster`
+
+> **`model:=m0609` 인자 필수.** `dsr_bringup2_rviz.launch.py` 의 `model`
+> DeclareLaunchArgument 기본값이 `m1013` 이므로 인자를 빼면 m1013 으로 뜬다.
+> 이 워크스페이스의 cobot 측 설정 (`cobot_robot_control/config/*.yaml`,
+> `cobot_bringup/config/params.yaml`) 은 모두 `robot_model: m0609` 라서
+> mismatch 가 나면 kinematics / 조인트 limit / 워크스페이스 bound 가 어긋나
+> motion 시점에 미묘한 동작 오류가 발생한다. T1 로그 첫머리의 `model :` 라인
+> 으로 항상 확인.
 
 이 터미널은 그대로 둘 것; 닫으면 로봇 연결이 끊긴다.
 
