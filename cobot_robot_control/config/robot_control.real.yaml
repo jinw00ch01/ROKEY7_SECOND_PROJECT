@@ -1,0 +1,43 @@
+# Explicit real-hardware configuration for Doosan + OnRobot RG2.
+# Launch with:
+#   ros2 launch cobot_bringup full_system.launch.py \
+#     enable_dsr_bringup:=true dsr_mode:=real \
+#     config_robot_control:=<share>/cobot_robot_control/config/robot_control.real.yaml
+/**:
+  ros__parameters:
+    robot_id: "dsr01"
+    robot_model: "m0609"
+
+    motion_backend: "real"
+    gripper_backend: "modbus"
+    gripper_ip: "192.168.1.1"
+    gripper_port: 502
+    gripper_force_x10: 150
+    gripper_open_width_x10: 1100
+
+    home_joints_deg: [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
+    approach_offset_z_mm: 80.0
+
+    velocity: 60.0
+    acceleration: 60.0
+    velocity_slow: 30.0
+    acceleration_slow: 30.0
+    grip_settle_timeout_sec: 5.0
+
+    grasp_local_offset_xy_mm: [1.0, 0.0]
+
+    action_name: "/robot/pick_and_place"
+    home_service_name: "/robot/home"
+    stop_service_name: "/robot/stop"
+    pose_service_name: "/robot/get_current_pose"
+    place_ready_topic: "/conveyor/place_ready"
+    place_y_margin_mm: 3.0
+    place_ready_publish_period_sec: 0.1
+
+    workspace_enabled: true
+    workspace_xmin_mm: 200.0
+    workspace_xmax_mm: 700.0
+    workspace_ymin_mm: -300.0
+    workspace_ymax_mm: 300.0
+    workspace_zmin_mm: 0.0
+    workspace_zmax_mm: 500.0

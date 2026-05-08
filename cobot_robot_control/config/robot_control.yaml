@@ -6,10 +6,10 @@
     robot_id: "dsr01"
     robot_model: "m0609"
 
-    # Backends. Set to real/modbus for Phase A' (real hardware).
-    # Set both back to "mock" for hardware-free development.
-    motion_backend: "real"        # real | mock
-    gripper_backend: "modbus"     # modbus | mock | tool_dio
+    # Safe default for hardware-free development and bringup tests.
+    # Use robot_control.real.yaml explicitly for real robot + RG2 hardware.
+    motion_backend: "mock"        # real | mock
+    gripper_backend: "mock"       # modbus | mock | tool_dio
     gripper_ip: "192.168.1.1"
     gripper_port: 502
     gripper_force_x10: 150        # 1/10 N units; 150 = 15 N (was 200 = 20 N, default 400 = 40 N)
@@ -41,3 +41,13 @@
     place_ready_topic: "/conveyor/place_ready"
     place_y_margin_mm: 3.0
     place_ready_publish_period_sec: 0.1
+
+    # Server-side action guard. Task-manager filtering is not sufficient
+    # because any action client can call /robot/pick_and_place directly.
+    workspace_enabled: true
+    workspace_xmin_mm: 200.0
+    workspace_xmax_mm: 700.0
+    workspace_ymin_mm: -300.0
+    workspace_ymax_mm: 300.0
+    workspace_zmin_mm: 0.0
+    workspace_zmax_mm: 500.0

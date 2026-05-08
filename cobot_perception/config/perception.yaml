@@ -1,6 +1,8 @@
 /**:
   ros__parameters:
-    gripper2camera_npy: "/home/choijinwoo/cobot_ws/src/cobot2/[lecture]pick_and_place_voice/resource/T_gripper2camera.npy"
+    # Required for real transforms. Set this to the calibrated
+    # T_gripper2camera.npy path for the robot/camera pair.
+    gripper2camera_npy: "~/cobot2_ws/cobot_perception/resource/T_gripper2camera.npy"
 
     # camera-frame depth gates (mm)
     min_depth_camera_mm: 50.0

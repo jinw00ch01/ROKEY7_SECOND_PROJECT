@@ -17,7 +17,7 @@ setup(
     maintainer='rokey4090',
     maintainer_email='rokey4090@todo.todo',
     description='Data recording package for nuts calibration',
-    license='TODO: License declaration',
+    license='Apache-2.0',
     entry_points={
         'console_scripts': [
             'data_recording = nuts_data_recording.data_recording:main',

@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   RealSense color 스트림 위에서 YOLOv8-OBB 너트 검출을 수행하는 ROS2 노드.
+#   color 토픽을 구독해 OBB 추론 후 단기 윈도우 융합으로 안정화하여
+#   /detection/objects (cobot_msgs/DetectedObjectArray)에 발행한다.
+#   깊이 lookup, hand-eye 변환, grasp_yaw 계산은 cobot_perception이 담당하므로
+#   transform_valid는 항상 false로 채워 보낸다.
 """ROS2 node: YOLOv8-OBB nut detection over a RealSense color stream.
 
 Subscribes to a color image topic and publishes fused 2D OBB detections on
@@ -24,17 +30,14 @@ from cobot_msgs.msg import DetectedObject, DetectedObjectArray
 
 from .yolo_detector import YoloObbDetector
 from .detection_postprocess import DetectionAggregator
+from .model_paths import resolve_model_path
 
 
 class ObjectDetectionNode(Node):
     def __init__(self) -> None:
         super().__init__("object_detection_node")
 
-        self.declare_parameter(
-            "model_path",
-            "/home/choijinwoo/cobot_ws/src/cobot2/cobot_OD_obb_nano/"
-            "train_phase2_20260504_173049/weights/best.pt",
-        )
+        self.declare_parameter("model_path", "")
         self.declare_parameter(
             "class_names",
             ["almond", "cashew", "pistachio", "walnut"],
@@ -49,7 +52,7 @@ class ObjectDetectionNode(Node):
         self.declare_parameter("output_topic", "/detection/objects")
         self.declare_parameter("publish_when_empty", True)
 
-        model_path = self.get_parameter("model_path").value
+        model_path = resolve_model_path(self.get_parameter("model_path").value)
         class_names = list(self.get_parameter("class_names").value)
         imgsz = int(self.get_parameter("imgsz").value)
         conf = float(self.get_parameter("conf_threshold").value)
@@ -84,6 +87,8 @@ class ObjectDetectionNode(Node):
         )
         self._bridge = CvBridge()
 
+        # 카메라 스트림은 최신성 우선이므로 BEST_EFFORT + KEEP_LAST=2로 큐를 최소화.
+        # 추론이 늦어져도 오래된 프레임이 쌓이지 않게 하여 latency를 일정하게 유지한다.
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
@@ -103,6 +108,8 @@ class ObjectDetectionNode(Node):
         )
 
     def _on_color(self, msg: Image) -> None:
+        # 추론은 프레임 주기보다 느릴 수 있으므로 _processing 플래그로 backpressure를
+        # 적용하여 콜백 중첩과 큐 적체를 방지한다.
         if self._processing:
             return
         self._processing = True
@@ -138,6 +145,7 @@ class ObjectDetectionNode(Node):
                 obj.height = float(d.height)
                 obj.theta = float(d.theta)
                 # camera_xyz / base_xyz / grasp_yaw left zero on initial publish.
+                # perception_transform_node가 깊이/hand-eye 변환 후 채워 넣는다.
                 obj.transform_valid = False
                 out.objects.append(obj)
 

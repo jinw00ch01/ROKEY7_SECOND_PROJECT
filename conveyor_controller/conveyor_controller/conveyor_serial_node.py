@@ -1,3 +1,10 @@
+# 한국어 요약:
+#   ROS 2의 컨베이어 명령 토픽을 Arduino UNO로 전달하는 시리얼 브리지 노드.
+#   /conveyor_cmd로 들어오는 F/R/STOP 문자열을 시리얼로 write하고,
+#   /conveyor/place_ready의 False->True 에지가 한 번 발생할 때마다
+#   auto_command를 1회 보낸 뒤 auto_run_duration_sec 타이머로 STOP을 발행한다.
+#   동일 트리거가 활성 중인 두 번째 에지는 무시하며, pyserial 미설치 시
+#   graceful fallback(에러 로그 후 노드 유지)으로 동작한다.
 import time
 
 import rclpy
@@ -9,6 +16,7 @@ try:
     import serial
     from serial import SerialException
 except ImportError:  # pragma: no cover - handled at runtime on robot
+    # pyserial 미설치 환경에서도 노드 import는 성공하도록 graceful fallback.
     serial = None
     SerialException = Exception
 
@@ -75,8 +83,12 @@ class ConveyorSerialNode(Node):
             'F<1-100>, R<1-100>, STOP'
         )
         self.get_logger().info(
-            f'Listening on {self.place_ready_topic}; on ready edge sends '
-            f'{self.auto_command} for {self.auto_run_duration_sec:.1f}s then STOP'
+            f'Place-ready trigger: one False->True edge on '
+            f'{self.place_ready_topic} = one movement '
+            f'(command={self.auto_command}, '
+            f'duration={self.auto_run_duration_sec:.2f}s, then STOP). '
+            f'Distance is approximate; exact distance requires firmware '
+            f'step mode.'
         )
 
     def _connect_serial(self):
@@ -93,6 +105,8 @@ class ConveyorSerialNode(Node):
                 timeout=self.serial_timeout,
                 write_timeout=self.serial_timeout,
             )
+            # Arduino UNO는 시리얼 연결 시 USB DTR 토글로 자동 reset되므로
+            # 부팅이 끝날 때까지 대기해야 첫 명령이 누락되지 않는다.
             if self.arduino_reset_delay > 0.0:
                 time.sleep(self.arduino_reset_delay)
             self.get_logger().info(
@@ -110,6 +124,7 @@ class ConveyorSerialNode(Node):
 
     def _place_ready_callback(self, msg):
         place_ready = bool(msg.data)
+        # False->True 에지에서만 1회 트리거 — 같은 True가 반복 publish되어도 belt가 중복 진행되지 않음.
         should_trigger = place_ready and not self._last_place_ready
         self._last_place_ready = place_ready
 
@@ -117,6 +132,7 @@ class ConveyorSerialNode(Node):
             return
 
         if self._auto_stop_timer is not None:
+            # 이미 진행 중인 auto-run이 끝나기 전 두 번째 에지는 무시 — 중첩 실행 방지.
             self.get_logger().warn('Ignoring place_ready trigger while conveyor auto-run is active')
             return
 
@@ -131,6 +147,11 @@ class ConveyorSerialNode(Node):
             return
 
         if self._send_command(self.auto_command, source='place_ready'):
+            self.get_logger().info(
+                f'[conveyor_start] command={self.auto_command} '
+                f'duration={self.auto_run_duration_sec:.2f}s (place_ready edge)'
+            )
+            # 시간 기반(duration-based) 타이머로 STOP을 예약 — 펌웨어 step 모드 미사용 시의 근사 제어.
             self._auto_stop_timer = self.create_timer(
                 self.auto_run_duration_sec,
                 self._auto_stop_callback,
@@ -141,6 +162,10 @@ class ConveyorSerialNode(Node):
             self._auto_stop_timer.cancel()
             self._auto_stop_timer = None
         self._send_command('STOP', source='place_ready')
+        self.get_logger().info(
+            f'[conveyor_stop] command was {self.auto_command}, '
+            f'duration={self.auto_run_duration_sec:.2f}s elapsed'
+        )
 
     def _send_command(self, command, source):
         if not self._is_valid_command(command):

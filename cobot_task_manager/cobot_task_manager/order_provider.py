@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   대기 중인 너트 주문(OrderBook)과 세 가지 OrderProvider를 정의한다.
+#   - MockOrderProvider: 고정 dict 반환 (Phase A 테스트용)
+#   - DBOrderProvider: GetNutOrder 서비스 호출 (Phase B, 협업자 DB 연동)
+#   - FileOrderProvider: cobot_voice의 latest_order.json 읽기 (Phase A')
+#   provider 별로 fetch() 시점만 다르며 OrderBook은 재시도/스킵 카운터를 함께 보관한다.
 """Order book for pending nut picks.
 
 Tracks per-class remaining counts plus retry/skip bookkeeping. Three providers
@@ -10,9 +16,10 @@ share the `OrderBook` data class:
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Iterable, Optional, Protocol
+from typing import Callable, Dict, Iterable, Optional, Protocol
 
 
 _NUT_CLASSES = frozenset({"almond", "cashew", "pistachio", "walnut"})
@@ -91,23 +98,43 @@ class DBOrderProvider:
     construction happens at the call site so we can pass the rclpy node in.
     """
 
-    def __init__(self, node, service_name: str = "/db/get_nut_order", timeout_sec: float = 5.0) -> None:
-        from cobot_msgs.srv import GetNutOrder  # type: ignore
+    def __init__(
+        self,
+        node,
+        service_name: str = "/db/get_nut_order",
+        timeout_sec: float = 5.0,
+        should_stop: Optional[Callable[[], bool]] = None,
+        service_type=None,
+        poll_sec: float = 0.05,
+    ) -> None:
+        if service_type is None:
+            from cobot_msgs.srv import GetNutOrder  # type: ignore
 
-        self._node = node
-        self._client = node.create_client(GetNutOrder, service_name)
-        self._req_type = GetNutOrder.Request
+            service_type = GetNutOrder
+
+        self._client = node.create_client(service_type, service_name)
+        self._req_type = service_type.Request
         self._timeout = float(timeout_sec)
         self._service_name = service_name
+        self._should_stop = should_stop or (lambda: False)
+        self._poll_sec = float(poll_sec)
+
+    def _await_future(self, future) -> bool:
+        # task_manager_node의 _await_future와 동일한 패턴. worker thread에서
+        # spin_until_future_complete를 못 쓰므로 polling으로 대체하고
+        # should_stop으로 종료 신호에 반응한다.
+        deadline = time.monotonic() + self._timeout
+        while time.monotonic() < deadline and not future.done():
+            if self._should_stop():
+                return False
+            time.sleep(self._poll_sec)
+        return future.done()
 
     def fetch(self) -> OrderBook:
         if not self._client.wait_for_service(timeout_sec=self._timeout):
             raise RuntimeError(f"{self._service_name} not available")
         future = self._client.call_async(self._req_type())
-        # The caller node must be spun externally; we just wait on the future.
-        import rclpy
-        rclpy.spin_until_future_complete(self._node, future, timeout_sec=self._timeout)
-        if not future.done():
+        if not self._await_future(future):
             raise RuntimeError(f"{self._service_name} call timed out")
         resp = future.result()
         if not getattr(resp, "success", False):
@@ -153,11 +180,16 @@ class FileOrderProvider:
         except json.JSONDecodeError as exc:
             raise RuntimeError(f"order file is not valid JSON: {exc}") from exc
 
+        # success=false 거부: STT/키워드 추출이 실패한 주문은 음성 인식 실수로
+        # 잘못된 너트 종류/개수를 픽하는 사고를 막기 위해 로봇을 트리거하지 않는다.
         if self._require_success and not data.get("success", False):
             raise RuntimeError(
                 f"order success=false (text: {data.get('recognized_text', '')!r})"
             )
 
+        # request_id 중복 거부: 동일 파일을 한 번 처리한 뒤 다시 fetch()되면
+        # (예: 작업 재시작) 같은 주문을 두 번 실행하지 않도록 차단한다.
+        # cobot_voice가 새 주문을 저장해 request_id가 바뀌어야만 다시 받는다.
         request_id = str(data.get("request_id", ""))
         if request_id and request_id == self._last_request_id:
             raise RuntimeError(

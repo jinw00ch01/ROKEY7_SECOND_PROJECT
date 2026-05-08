@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   사용자 발화 텍스트에서 카테고리/강도를 키워드 기반으로 추출하고
+#   너트 combo를 빌드하는 추천 엔진. JSON config에 정의된 매핑을 로드하여
+#   intensity_counts(low=1/normal=2/high=3)와 max_total_count=6 cap을 적용.
+#   다중 카테고리 overflow 시 카테고리 등장 순서를 우선순위로 사용해
+#   낮은 우선순위 너트부터 count를 줄인다.
 import json
 import logging
 from pathlib import Path
@@ -83,6 +89,7 @@ def extract_categories(text, categories_config):
         if matched_indexes:
             matches.append((min(matched_indexes), category))
 
+    # 텍스트 내 등장 위치(index)가 빠른 카테고리를 더 높은 우선순위로 본다.
     categories = [category for _, category in sorted(matches, key=lambda item: item[0])]
     logger.debug("Extracted categories=%s from text=%r", categories, text)
     return categories
@@ -125,7 +132,9 @@ def build_combo(categories, intensity, combo_rules, categories_config):
     if intensity not in intensity_counts:
         logger.warning("Unknown intensity %r; using normal.", intensity)
         intensity = "normal"
+    # intensity_counts는 보통 low=1/normal=2/high=3. 카테고리당 너트 개수.
     count_per_category = int(intensity_counts.get(intensity, intensity_counts.get("normal", 2)))
+    # 전체 combo 합계의 상한(기본 6개). 초과 시 우선순위 낮은 너트부터 감산.
     max_total_count = int(combo_rules.get("max_total_count", 6))
 
     combo_by_nut = {}
@@ -172,6 +181,8 @@ def _cap_combo_by_priority(combo_by_nut, ordered_nuts, max_total_count):
         max_total_count,
     )
 
+    # category_order(=ordered_nuts) 역순으로 순회하여 낮은 우선순위 너트의
+    # count부터 한 개씩 줄여 max_total_count 이내로 맞춘다.
     for nut in reversed(ordered_nuts):
         while total_count > max_total_count and combo_by_nut.get(nut, 0) > 0:
             combo_by_nut[nut] -= 1

@@ -20,7 +20,7 @@ setup(
     maintainer='aes',
     maintainer_email='aes@todo.todo',
     description='ROS 2 serial bridge for controlling an Arduino UNO conveyor stepper motor.',
-    license='TODO: License declaration',
+    license='Apache-2.0',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [

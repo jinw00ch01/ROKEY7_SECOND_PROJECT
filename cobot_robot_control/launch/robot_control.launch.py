@@ -1,7 +1,9 @@
 """Launch the cobot_robot_control node.
 
 The node is placed under the robot namespace (default: dsr01) so DSR_ROBOT2
-can find the right ROS topics. Override `namespace` to match your robot.
+can find the right ROS topics. The default config uses mock backends; pass
+config:=.../robot_control.real.yaml only when real Doosan + RG2 hardware is
+intentionally available.
 """
 
 import os
@@ -21,7 +23,10 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument(
             "config",
             default_value=default_config,
-            description="ROS2 parameter yaml.",
+            description=(
+                "ROS2 parameter yaml. Defaults to mock-safe robot_control.yaml; "
+                "use robot_control.real.yaml for real hardware."
+            ),
         ),
         DeclareLaunchArgument(
             "namespace",

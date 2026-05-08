@@ -1,0 +1,15 @@
+# Per-class fine-tune offset (mm) added to grasp_xyz.z at pick time only.
+#
+# Negative = grip deeper (good for nuts that slip).
+# Positive = grip shallower (good if pressing into the table).
+#
+# Applied ONLY at the pick stage (not at place / return). Tune empirically
+# from `scripts/pick_one.py --z-override <z>` sweeps, then commit the value
+# here. Single source of truth: task-manager (/task/start path) and any
+# helper script that uses cobot_task_manager.pick_offsets both read this
+# file. Missing keys fall back to 0.0.
+per_class_z_offset_mm:
+  almond: 0.0
+  cashew: 0.0
+  pistachio: 0.0
+  walnut: -1.0

@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   OBB detection에 대한 깊이 추정 유틸.
+#   RealSense aligned depth(uint16, 단위 mm) 이미지에서 OBB 회전 사각형 내부의
+#   유효 픽셀들의 median을 사용한다. median은 너트 가장자리 dropout 같은 outlier에
+#   둔감하여 작은 객체에서 안정적이다. 유효 픽셀이 없으면 NaN을 반환하여 호출자가
+#   detection을 invalid로 표시할 수 있게 한다.
 """Depth lookup for an OBB detection.
 
 RealSense aligned depth images are uint16 with values in millimeters.
@@ -77,6 +83,7 @@ def median_inside_obb(
     if depth_mm.ndim != 2:
         raise ValueError(f"depth must be 2D, got {depth_mm.shape}")
     h, w = depth_mm.shape
+    # inset_factor로 OBB를 살짝 축소해 가장자리 깊이 dropout 영향을 줄인다.
     poly = _obb_polygon(cx, cy, width * inset_factor, height * inset_factor, theta_rad)
     # crop bounding box of polygon to limit mask cost
     xmin = int(max(0, math.floor(poly[:, 0].min())))

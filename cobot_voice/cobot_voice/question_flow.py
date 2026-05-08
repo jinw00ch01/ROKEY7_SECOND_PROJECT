@@ -1,3 +1,8 @@
+# 한국어 요약:
+#   question_flow.json에 정의된 TTS/UI 메시지 템플릿을 로드하고 키별로
+#   조회하는 헬퍼. config 디렉터리 위치는 source-tree → ament share 순으로
+#   fallback 탐색한다. format 치환 키({combo_text} 등)는 호출부에서 kwargs로
+#   주입한다.
 from pathlib import Path
 import json
 import logging
@@ -10,18 +15,22 @@ QUESTION_FLOW_FILENAME = "question_flow.json"
 
 
 def _get_config_dir():
+    # 1단계: 개발 시 source tree의 config 디렉터리를 우선.
     if SOURCE_CONFIG_DIR.exists():
         return SOURCE_CONFIG_DIR
 
+    # 2단계: 설치된 ROS 환경에서는 ament share 디렉터리에서 탐색.
     try:
         from ament_index_python.packages import get_package_share_directory
 
         share_config_dir = Path(get_package_share_directory("cobot_voice")) / "config"
+        # 3단계: share dir이 실제로 존재할 때만 반환.
         if share_config_dir.exists():
             return share_config_dir
     except Exception:
         pass
 
+    # 4단계: 모두 실패 시 source 경로를 그대로 반환 (load 시 명확한 에러 발생).
     return SOURCE_CONFIG_DIR
 
 
@@ -47,4 +56,5 @@ def get_message(key, **kwargs):
     if key not in messages:
         raise KeyError(f"Unknown question flow key: {key}")
 
+    # kwargs는 메시지 내 {combo_text} 등 placeholder 치환용으로 사용된다.
     return messages[key].format(**kwargs)

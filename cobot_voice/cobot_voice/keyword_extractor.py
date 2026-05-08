@@ -1,3 +1,9 @@
+# 한국어 요약:
+#   OpenAI gpt-4o LLM을 사용해 사용자 발화에서 action/너트 키워드와
+#   상태(category)/강도(intensity)를 추출하는 legacy extractor 모듈.
+#   save_recommendation_order는 latest_order.json 스키마의 단일 진실 소스.
+#   normalize_combo는 중복 너트 제거 및 count 합산 후 success 여부를
+#   categories와 combo가 모두 비어있지 않을 때만 True로 판정한다.
 import json
 import logging
 from datetime import datetime
@@ -132,8 +138,17 @@ def build_latest_order(text: str):
         if intensity_result.get("reasoning_message"):
             reasoning += " " + intensity_result.get("reasoning_message")
 
-    from cobot_voice.nut_recommendation import recommend_nuts
-    combo, combo_text = recommend_nuts(categories, intensity)
+    from cobot_voice.nut_recommendation import (
+        build_combo,
+        format_combo_text,
+        load_json,
+        _get_config_dir,
+    )
+    config_dir = _get_config_dir()
+    categories_config = load_json(config_dir / "keyword_categories.json")
+    combo_rules = load_json(config_dir / "nut_combo_rules.json")
+    combo = build_combo(categories, intensity, combo_rules, categories_config)
+    combo_text = format_combo_text(combo)
     
     order = build_latest_order_from_recommendation({
         "recognized_text": text,
@@ -152,6 +167,8 @@ def build_latest_order(text: str):
 def build_latest_order_from_recommendation(recommendation):
     combo = normalize_combo(recommendation.get("combo", []))
     categories = list(recommendation.get("categories", []))
+    # success는 카테고리도 있고 combo도 비어있지 않은 경우에만 True.
+    # 두 조건 중 하나라도 비면 추천 실패로 간주한다.
     success = bool(categories and combo)
     intensity = normalize_intensity(recommendation.get("intensity", "normal"))
 
@@ -167,6 +184,7 @@ def build_latest_order_from_recommendation(recommendation):
 
 
 def normalize_combo(combo):
+    # 같은 너트가 여러 번 등장하면 count를 합산하면서 첫 등장 순서는 보존한다.
     normalized_by_nut = {}
     ordered_nuts = []
     if not isinstance(combo, list):

@@ -1,3 +1,8 @@
+# 한국어 요약:
+#   추천이 성공한 주문에 대해 cobot_task_manager의 /task/start 서비스를 호출해
+#   로봇 픽업을 트리거하는 dispatch_callback 모듈. ROS 노드로 만들지 않기 위해
+#   subprocess.run으로 `ros2 service call`을 실행하며, order의 success=False면
+#   호출을 거부한다. 응답 stdout에서 "success=True" 문자열을 검색해 성공 여부를 판정한다.
 """Trigger cobot_task_manager's /task/start after a successful recommendation.
 
 Designed as a `dispatch_callback` for `voice_order_flow.run_recommendation_flow`.
@@ -31,6 +36,7 @@ def dispatch_to_task_manager(
     never raises.
     """
     if order is None or not order.get("success"):
+        # 추천 실패 주문은 로봇 트리거 거부 — 잘못된 픽업 방지.
         logger.warning(
             "dispatch_to_task_manager: order missing or success=false; "
             "not triggering /task/start"
@@ -38,6 +44,7 @@ def dispatch_to_task_manager(
         return False
 
     try:
+        # 이 모듈을 ROS 노드로 만들지 않기 위해 외부 CLI(`ros2 service call`)를 사용.
         result = subprocess.run(
             ["ros2", "service", "call", START_SERVICE, SERVICE_TYPE, "{}"],
             capture_output=True,
@@ -61,6 +68,7 @@ def dispatch_to_task_manager(
     # ros2 service call output looks like:
     #   response:
     #   std_srvs.srv.Trigger_Response(success=True, message='task started')
+    # stdout 텍스트에서 "success=True" 부분 문자열을 찾아 성공 여부를 판정한다.
     if "success=True" in result.stdout:
         logger.info(f"{START_SERVICE} accepted (request_id={order.get('request_id', '')!r})")
         return True

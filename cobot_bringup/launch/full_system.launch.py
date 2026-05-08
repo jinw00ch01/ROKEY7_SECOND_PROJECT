@@ -9,24 +9,19 @@ All toggles flow down to the sub-launches via launch_arguments. Examples:
 # Phase A' real-mode entry (with both hardware)
   ros2 launch cobot_bringup full_system.launch.py \\
       enable_realsense:=true enable_dsr_bringup:=true \\
-      dsr_mode:=real dsr_host:=192.168.137.100
-  # plus override yaml backends:
-  #   cobot_robot_control: motion_backend=real, gripper_backend=modbus
+      dsr_mode:=real dsr_host:=192.168.137.100 \\
+      config_robot_control:=<share>/cobot_robot_control/config/robot_control.real.yaml
   #   cobot_perception:    tcp_source=service (once implemented)
 """
 
-import os
-
-from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description() -> LaunchDescription:
-    bringup_share = get_package_share_directory("cobot_bringup")
-
     pass_args = [
         # perception
         "enable_realsense",
@@ -45,6 +40,7 @@ def generate_launch_description() -> LaunchDescription:
         "task_autostart",
         "order_source",
         "file_order_path",
+        "enable_firebase_status_bridge",
     ]
 
     args = [
@@ -67,31 +63,52 @@ def generate_launch_description() -> LaunchDescription:
             description="Absolute path to latest_order.json (when order_source=file)",
         ),
         DeclareLaunchArgument(
+            "enable_firebase_status_bridge",
+            default_value="true",
+            description=(
+                "Run firebase_status_bridge to mirror robot pipeline state to "
+                "Firestore /robot_session/current.robot_state for the web UI. "
+                "Set false to skip; no-ops anyway if Firebase creds missing."
+            ),
+        ),
+        DeclareLaunchArgument(
             "config_object_detection",
-            default_value=os.path.join(
-                get_package_share_directory("cobot_object_detection"),
-                "config", "object_detection.yaml",
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("cobot_object_detection"),
+                    "config",
+                    "object_detection.yaml",
+                ]
             ),
         ),
         DeclareLaunchArgument(
             "config_perception",
-            default_value=os.path.join(
-                get_package_share_directory("cobot_perception"),
-                "config", "perception.yaml",
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("cobot_perception"),
+                    "config",
+                    "perception.yaml",
+                ]
             ),
         ),
         DeclareLaunchArgument(
             "config_robot_control",
-            default_value=os.path.join(
-                get_package_share_directory("cobot_robot_control"),
-                "config", "robot_control.yaml",
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("cobot_robot_control"),
+                    "config",
+                    "robot_control.yaml",
+                ]
             ),
         ),
         DeclareLaunchArgument(
             "config_task_manager",
-            default_value=os.path.join(
-                get_package_share_directory("cobot_task_manager"),
-                "config", "task_manager.yaml",
+            default_value=PathJoinSubstitution(
+                [
+                    FindPackageShare("cobot_task_manager"),
+                    "config",
+                    "task_manager.yaml",
+                ]
             ),
         ),
     ]
@@ -101,7 +118,9 @@ def generate_launch_description() -> LaunchDescription:
 
     perception = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(bringup_share, "launch", "perception.launch.py")
+            PathJoinSubstitution(
+                [FindPackageShare("cobot_bringup"), "launch", "perception.launch.py"]
+            )
         ),
         launch_arguments=[
             forward("enable_realsense"),
@@ -112,7 +131,9 @@ def generate_launch_description() -> LaunchDescription:
 
     robot = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(bringup_share, "launch", "robot.launch.py")
+            PathJoinSubstitution(
+                [FindPackageShare("cobot_bringup"), "launch", "robot.launch.py"]
+            )
         ),
         launch_arguments=[
             forward("enable_dsr_bringup"),
@@ -127,13 +148,16 @@ def generate_launch_description() -> LaunchDescription:
 
     host = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(
-            os.path.join(bringup_share, "launch", "host_system.launch.py")
+            PathJoinSubstitution(
+                [FindPackageShare("cobot_bringup"), "launch", "host_system.launch.py"]
+            )
         ),
         launch_arguments=[
             forward("config_task_manager"),
             forward("task_autostart"),
             forward("order_source"),
             forward("file_order_path"),
+            forward("enable_firebase_status_bridge"),
         ],
     )
 

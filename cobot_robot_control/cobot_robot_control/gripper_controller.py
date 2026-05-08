@@ -1,3 +1,10 @@
+# 한국어 요약:
+#   OnRobot RG2 그리퍼 백엔드 추상화. 세 백엔드를 같은 Protocol로 노출해
+#   상위 코드 변경 없이 교체 가능.
+#   - mock: 하드웨어 없이 의도만 로깅(가상 모드 개발).
+#   - modbus: Modbus TCP로 실 RG2 제어(현 Phase A 기본).
+#   - tool_dio: Doosan Tool DIO 경유 stub. 배선 확정 시 구현 예정.
+#   wait_until_idle 헬퍼는 busy 비트의 지연 상승을 두 단계로 검증.
 """Gripper backend abstraction for the OnRobot RG2 + room for Tool DIO.
 
 Phase A uses the Modbus TCP backend (matches lecture/onrobot.py path).
@@ -9,8 +16,12 @@ implementation in once the wiring story is finalized.
 
 from __future__ import annotations
 
+import logging
 import time
 from typing import Protocol
+
+
+_log = logging.getLogger(__name__)
 
 
 class GripperBackend(Protocol):
@@ -132,8 +143,8 @@ class ModbusRG2Backend:
     def shutdown(self) -> None:
         try:
             self._client.close()
-        except Exception:
-            pass
+        except Exception as exc:
+            _log.debug("RG2 modbus close failed: %s", exc)
 
 
 def make_gripper(backend: str, **kwargs) -> GripperBackend:
@@ -161,6 +172,12 @@ def wait_until_idle(gripper: GripperBackend, poll_sec: float = 0.05, timeout_sec
     If busy never goes True within `start_window`, assume the command
     was a no-op and return True.
     """
+    # 한국어: 두 단계 검증 이유 - close()/move_to() 직후 busy 비트가
+    # 실제로 1로 올라오기까지 짧은 지연이 있다. 한 번만 polling하면
+    # 아직 0인 stale 값을 읽고 즉시 idle로 판단해 verify_grip이 이전
+    # cycle의 grip_detected 비트를 그대로 읽는 버그가 발생했다.
+    # 1단계: start_window 동안 busy=True 상승을 확인(상승 안 보이면 no-op).
+    # 2단계: busy=False로 다시 떨어질 때까지 timeout까지 대기.
     start_window = 0.4  # how long to wait for busy=True before assuming no-op
     deadline = time.time() + timeout_sec
 

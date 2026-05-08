@@ -1,3 +1,7 @@
+# 한국어 요약:
+#   YOLOv8-OBB 추론 래퍼. Ultralytics OBB 출력을 평탄한 dataclass 리스트로 파싱한다.
+#   xywhr 형식(픽셀 cx,cy,w,h + 라디안 theta)을 그대로 받고, theta는
+#   [-pi/2, pi/2] 범위로 정규화하여 OBB 대칭성을 처리한다.
 """YOLOv8-OBB inference wrapper.
 
 Loads the trained nut OBB model and parses ultralytics OBB output into a flat
@@ -65,6 +69,7 @@ class YoloObbDetector:
             obb = getattr(r, "obb", None)
             if obb is None or len(obb) == 0:
                 continue
+            # xywhr: (N,5) - cx,cy,w,h는 픽셀 단위, theta는 라디안.
             xywhr = obb.xywhr.cpu().numpy()  # (N, 5)
             confs = obb.conf.cpu().numpy()
             classes = obb.cls.cpu().numpy().astype(int)
