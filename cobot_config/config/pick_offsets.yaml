@@ -10,6 +10,6 @@
 # file. Missing keys fall back to 0.0.
 per_class_z_offset_mm:
   almond: 0.0
-  cashew: 0.0
+  cashew: -2.0
   pistachio: 0.0
   walnut: -1.0
