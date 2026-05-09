@@ -24,7 +24,7 @@
     acceleration_slow: 30.0
     grip_settle_timeout_sec: 5.0
 
-    grasp_local_offset_xy_mm: [1.0, 0.0]
+    grasp_local_offset_xy_mm: [0.5, -3.0]
 
     action_name: "/robot/pick_and_place"
     home_service_name: "/robot/home"
