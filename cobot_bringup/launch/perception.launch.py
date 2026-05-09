@@ -78,13 +78,11 @@ def generate_launch_description() -> LaunchDescription:
         condition=IfCondition(LaunchConfiguration("enable_realsense")),
     )
 
-    object_detection = Node(
-        package="cobot_object_detection",
-        executable="object_detection_node",
-        name="object_detection_node",
-        output="screen",
-        parameters=[LaunchConfiguration("config_object_detection")],
-    )
+    # NOTE: object_detection_node는 더 이상 launch에 포함하지 않는다.
+    # perception_transform_node가 trigger 시점에만 직접 YOLO 추론을 수행하도록
+    # 통합되어 stream cache의 frame-TCP 미스매치를 제거했다. 디버깅용으로 별도
+    # 실행하고 싶다면 `ros2 run cobot_object_detection object_detection_node`로
+    # 수동 기동 가능 (config_object_detection arg는 호환을 위해 남겨둠).
 
     perception_transform = Node(
         package="cobot_perception",
@@ -94,4 +92,4 @@ def generate_launch_description() -> LaunchDescription:
         parameters=[LaunchConfiguration("config_perception")],
     )
 
-    return LaunchDescription(args + [realsense, object_detection, perception_transform])
+    return LaunchDescription(args + [realsense, perception_transform])
