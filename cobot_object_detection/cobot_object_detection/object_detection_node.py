@@ -87,12 +87,14 @@ class ObjectDetectionNode(Node):
         )
         self._bridge = CvBridge()
 
-        # 카메라 스트림은 최신성 우선이므로 BEST_EFFORT + KEEP_LAST=2로 큐를 최소화.
-        # 추론이 늦어져도 오래된 프레임이 쌓이지 않게 하여 latency를 일정하게 유지한다.
+        # RealSense color publisher가 RELIABLE이라 RELIABLE로 매칭한다.
+        # BEST_EFFORT 단독 subscriber는 cyclonedds 환경에서 메시지가 전달되지
+        # 않는 현상이 있어 여기서 RELIABLE을 강제. KEEP_LAST=1로 latency 우선
+        # 의도(오래된 프레임이 쌓이지 않게)는 유지한다.
         sensor_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
+            reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
-            depth=2,
+            depth=1,
         )
         self._publisher = self.create_publisher(
             DetectedObjectArray, output_topic, 10
