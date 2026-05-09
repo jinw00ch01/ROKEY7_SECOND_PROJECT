@@ -36,11 +36,17 @@ from std_srvs.srv import Trigger
 from cobot_msgs.action import PickAndPlace
 from cobot_msgs.srv import DetectOnce
 
+from .cluster_policy import choose_cluster_plan
 from .order_provider import DBOrderProvider, FileOrderProvider, MockOrderProvider, OrderBook
 from .pick_offsets import load_pick_offsets
 from .retry_policy import FailureAction, RetryPolicy
 from .target_selector import WorkspaceBox, choose_target
 from .task_state import TaskState
+
+# 한국어: robot_control_node와 합의된 sentinel. PickAndPlace 액션을 closed-
+# gripper push로 재해석하기 위한 target_class 약속. 변경 시 robot_control_node
+# CLUSTER_PUSH_TARGET_CLASS도 같이 갱신해야 한다.
+CLUSTER_PUSH_TARGET_CLASS = "__cluster_push__"
 
 
 class TaskManagerNode(Node):
@@ -92,6 +98,15 @@ class TaskManagerNode(Node):
         self.declare_parameter("perception_service_name", "/perception/detect_once")
         self.declare_parameter("pick_action_name", "/robot/pick_and_place")
         self.declare_parameter("home_service_name", "/robot/home")
+
+        # Cluster handling — see docs/05_clustered_nuts_handling.md.
+        self.declare_parameter("cluster_enabled", True)
+        self.declare_parameter("cluster_dist_threshold_mm", 35.0)
+        self.declare_parameter("cluster_candidate_offset_mm", 10.0)
+        self.declare_parameter("cluster_push_scale", 1.5)
+        # push z = grasp z + cluster_push_z_offset_mm (양수 = grasp보다 위).
+        self.declare_parameter("cluster_push_z_offset_mm", 2.0)
+        self.declare_parameter("max_cluster_pushes_per_class", 2)
 
         self.declare_parameter("max_detect_misses", 2)
         self.declare_parameter("max_grasp_failures", 2)
@@ -174,6 +189,23 @@ class TaskManagerNode(Node):
         self._inter_pick_delay_sec = float(self.get_parameter("inter_pick_delay_sec").value)
         self._verification_enabled = bool(self.get_parameter("verification_enabled").value)
         self._max_verification_rounds = int(self.get_parameter("max_verification_rounds").value)
+        self._cluster_enabled = bool(self.get_parameter("cluster_enabled").value)
+        self._cluster_dist_threshold_mm = float(
+            self.get_parameter("cluster_dist_threshold_mm").value
+        )
+        self._cluster_candidate_offset_mm = float(
+            self.get_parameter("cluster_candidate_offset_mm").value
+        )
+        self._cluster_push_scale = float(self.get_parameter("cluster_push_scale").value)
+        self._cluster_push_z_offset_mm = float(
+            self.get_parameter("cluster_push_z_offset_mm").value
+        )
+        self._max_cluster_pushes_per_class = int(
+            self.get_parameter("max_cluster_pushes_per_class").value
+        )
+        # 사이클 동안 클래스별 cluster push 횟수 추적. 같은 클래스에서 push가
+        # 반복되어 무한 루프에 빠지는 것을 막는 용도.
+        self._cluster_push_counts: Dict[str, int] = {}
         explicit_offsets_path = (
             str(self.get_parameter("pick_offsets_path").value).strip() or None
         )
@@ -416,6 +448,55 @@ class TaskManagerNode(Node):
             return None
         return result_future.result().result
 
+    def _send_cluster_push_goal(self, plan) -> Optional[object]:
+        # 한국어: cluster_policy가 만든 ClusterPlan을 PickAndPlace 액션 goal로
+        # 변환해 송출. target_class=CLUSTER_PUSH_TARGET_CLASS sentinel,
+        # grasp_xyz=진입점, return_xyz=푸시 종점, grasp_yaw=진입→푸시 방향
+        # (closed gripper의 회전 방향). pre_grasp_width_mm=0으로 두어 액션
+        # 서버가 pre-position 단계를 건너뛰게 하고, 대신 push 첫 단계에서
+        # gripper.close()를 직접 호출한다.
+        if not self._pick_client.wait_for_server(timeout_sec=self._service_timeout_sec):
+            self.get_logger().error("pick_and_place action server not available (cluster push)")
+            return None
+
+        ex, ey, ez = plan.entry_xyz_mm
+        pex, pey, pez = plan.push_end_xyz_mm
+        # push yaw: entry→push_end 방향. 닫힌 그리퍼가 회전 정렬되어 있으면
+        # 이웃 너트와의 충돌 가능성을 좀 더 줄일 수 있다. atan2(dy, dx).
+        import math as _math
+        push_yaw = _math.atan2(pey - ey, pex - ex)
+
+        goal = PickAndPlace.Goal()
+        goal.target_class = CLUSTER_PUSH_TARGET_CLASS
+        goal.grasp_xyz.x = float(ex)
+        goal.grasp_xyz.y = float(ey)
+        goal.grasp_xyz.z = float(ez)
+        goal.grasp_yaw = float(push_yaw)
+        goal.pre_grasp_width_mm = 0.0
+        goal.return_xyz.x = float(pex)
+        goal.return_xyz.y = float(pey)
+        goal.return_xyz.z = float(pez)
+        # return_zyz_deg는 cluster push에서 사용되지 않지만 메시지 필드는
+        # 채워줘야 한다. 현재 yaml의 return_zyz_deg를 그대로 전달.
+        goal.return_zyz_deg = [
+            float(self._return_zyz_deg[0]),
+            float(self._return_zyz_deg[1]),
+            float(self._return_zyz_deg[2]),
+        ]
+
+        send_future = self._pick_client.send_goal_async(goal)
+        if not self._await_future(send_future, self._service_timeout_sec):
+            return None
+        goal_handle = send_future.result()
+        if not goal_handle.accepted:
+            self.get_logger().error("cluster push goal rejected")
+            return None
+        result_future = goal_handle.get_result_async()
+        if not self._await_future(result_future, self._action_timeout_sec):
+            self.get_logger().error("cluster push action timed out")
+            return None
+        return result_future.result().result
+
     # ----- order book processing -----------------------------------------
 
     def _process_order_book(self, order: OrderBook, phase: str) -> bool:
@@ -453,6 +534,73 @@ class TaskManagerNode(Node):
                 if action is FailureAction.SKIP_CLASS:
                     order.mark_skipped(target_class)
                 continue
+
+            # 한국어: cluster check — candidate가 군집 상태면 closed-gripper
+            # push로 분산시킨 뒤 continue하여 재관측. cluster_enabled=False
+            # 면 건너뛰고 일반 pick으로 진행. 같은 클래스에서 push 횟수
+            # 상한 초과 시 일반 pick으로 fallback (push 후에도 군집이 유지
+            # 되는 케이스 무한루프 방지).
+            if (
+                self._cluster_enabled
+                and self._cluster_push_counts.get(target_class, 0)
+                < self._max_cluster_pushes_per_class
+            ):
+                # 한국어: push z = grasp z + cluster_push_z_offset_mm.
+                # grasp z = base_z + per_class_z_offset (pick_offsets.yaml).
+                # 두 보정을 합쳐 cluster_policy에 전달하면 plan.entry/push_end
+                # 의 z가 곧바로 절대 push 높이가 된다.
+                push_z_total_offset = (
+                    self._per_class_z_offset_mm.get(target_class, 0.0)
+                    + self._cluster_push_z_offset_mm
+                )
+                cluster_plan = choose_cluster_plan(
+                    objects_msg.objects,
+                    candidate,
+                    self._workspace,
+                    cluster_dist_threshold_mm=self._cluster_dist_threshold_mm,
+                    candidate_offset_mm=self._cluster_candidate_offset_mm,
+                    push_scale=self._cluster_push_scale,
+                    push_z_offset_mm=push_z_total_offset,
+                    conf_gate=self._conf_gate,
+                    min_depth_mm=self._min_depth_mm,
+                )
+                if cluster_plan is not None:
+                    self._cluster_push_counts[target_class] = (
+                        self._cluster_push_counts.get(target_class, 0) + 1
+                    )
+                    self._set_state(
+                        TaskState.CLUSTER_PUSH,
+                        f"{target_class} dist={cluster_plan.neighbor_distance_mm:.1f}mm "
+                        f"#{self._cluster_push_counts[target_class]}",
+                    )
+                    self.get_logger().info(
+                        f"cluster push for {target_class}: "
+                        f"target=({candidate.base_xyz.x:.1f},{candidate.base_xyz.y:.1f}) "
+                        f"neighbor_dist={cluster_plan.neighbor_distance_mm:.1f}mm "
+                        f"entry={cluster_plan.entry_xyz_mm} "
+                        f"push_end={cluster_plan.push_end_xyz_mm}"
+                    )
+                    push_result = self._send_cluster_push_goal(cluster_plan)
+                    if push_result is None:
+                        # push 자체가 실패(서버 미가용/타임아웃)이면 ABORT로
+                        # 처리. workspace 위반 등은 cluster_policy에서 사전
+                        # 차단되므로 여기 도달하면 보통 인프라 문제.
+                        self._set_state(TaskState.ABORTED, "cluster_push_failure")
+                        self._publish_result(False, "cluster_push_failure")
+                        return False
+                    if not push_result.success:
+                        # push가 motion fail 등으로 실패한 경우, 일반 pick으로
+                        # fallback. cluster 카운트는 이미 증가했으므로 다음
+                        # 루프에서 같은 target에 push가 반복되지는 않는다.
+                        self.get_logger().warn(
+                            f"cluster push failed code={push_result.failure_code} "
+                            f"({push_result.message}) — fall through to pick"
+                        )
+                    else:
+                        # push 성공 시 settle 후 재관측 사이클로.
+                        if self._inter_pick_delay_sec > 0.0:
+                            time.sleep(self._inter_pick_delay_sec)
+                        continue
 
             self._set_state(TaskState.PICK_AND_PLACE, target_class)
             self.get_logger().info(
@@ -512,6 +660,9 @@ class TaskManagerNode(Node):
 
     def _run(self) -> None:
         self._set_state(TaskState.INIT)
+        # 사이클 시작 시 cluster push 카운터 리셋 — 이전 사이클 상태가
+        # 누적되어 새 주문 처리에서 push가 차단되는 것을 방지.
+        self._cluster_push_counts = {}
         try:
             order: OrderBook = self._order_provider.fetch()
         except Exception as exc:  # noqa: BLE001

@@ -12,6 +12,7 @@ class TaskState(str, Enum):
     DETECT = "detect"                  # 매 루프 시작, detect_once 호출 직전.
     SELECT_TARGET = "select_target"    # detection 받은 뒤 target_selector 진입.
     PICK_AND_PLACE = "pick_and_place"  # pick_and_place 액션 goal 전송 직전.
+    CLUSTER_PUSH = "cluster_push"      # 군집 분산 push 액션 goal 전송 직전 (closed gripper).
     VERIFY = "verify"                  # 사이클 마무리 검증 라운드 진입 시 emit.
     DONE = "done"                      # 주문 모두 처리 후 정상 종료.
     ABORTED = "aborted"                # ABORT 분기(home/order/action 실패)에서 emit.

@@ -37,7 +37,18 @@ from cobot_msgs.srv import GetCurrentPose
 
 from .doosan_motion_client import make_motion_client
 from .gripper_controller import make_gripper, wait_until_idle
-from .motion_sequence import MotionConfig, WorkspaceBounds, execute_pick_and_place
+from .motion_sequence import (
+    MotionConfig,
+    WorkspaceBounds,
+    execute_closed_gripper_push,
+    execute_pick_and_place,
+)
+
+
+# 한국어: target_class 가 이 sentinel이면 PickAndPlace 액션을 군집 분산용
+# closed-gripper push로 해석한다. goal.grasp_xyz=진입점, goal.return_xyz=
+# 푸시 종점으로 재사용. 별도 액션 메시지를 추가하지 않기 위한 합의된 약속.
+CLUSTER_PUSH_TARGET_CLASS = "__cluster_push__"
 
 
 class RobotControlNode(Node):
@@ -325,23 +336,49 @@ class RobotControlNode(Node):
             def is_cancelled() -> bool:
                 return goal_handle.is_cancel_requested or self._stop_event.is_set()
 
-            success, code, message = execute_pick_and_place(
-                motion=self._motion,
-                gripper=self._gripper,
-                cfg=self._cfg,
-                grasp_xyz_mm=[goal.grasp_xyz.x, goal.grasp_xyz.y, goal.grasp_xyz.z],
-                grasp_yaw_rad=float(goal.grasp_yaw),
-                return_xyz_mm=[goal.return_xyz.x, goal.return_xyz.y, goal.return_xyz.z],
-                return_zyz_deg=[
-                    float(goal.return_zyz_deg[0]),
-                    float(goal.return_zyz_deg[1]),
-                    float(goal.return_zyz_deg[2]),
-                ],
-                pre_grasp_width_mm=float(goal.pre_grasp_width_mm),
-                feedback_cb=feedback_cb,
-                place_ready_cb=place_ready_cb,
-                is_cancelled=is_cancelled,
-            )
+            # 한국어: target_class가 CLUSTER_PUSH_TARGET_CLASS sentinel이면
+            # 군집 분산 push로 분기. 같은 PickAndPlace 액션 메시지를 재사용해
+            # grasp_xyz=진입점, return_xyz=푸시 종점, grasp_yaw=push 방향
+            # 으로 해석한다. place_ready 토픽은 push 동안 변하지 않는다.
+            if goal.target_class == CLUSTER_PUSH_TARGET_CLASS:
+                self.get_logger().info(
+                    f"[cluster_push] entry=({goal.grasp_xyz.x:.1f},"
+                    f"{goal.grasp_xyz.y:.1f},{goal.grasp_xyz.z:.1f}) "
+                    f"end=({goal.return_xyz.x:.1f},{goal.return_xyz.y:.1f},"
+                    f"{goal.return_xyz.z:.1f}) yaw={goal.grasp_yaw:.3f}"
+                )
+                success, code, message = execute_closed_gripper_push(
+                    motion=self._motion,
+                    gripper=self._gripper,
+                    cfg=self._cfg,
+                    entry_xyz_mm=[goal.grasp_xyz.x, goal.grasp_xyz.y, goal.grasp_xyz.z],
+                    push_end_xyz_mm=[
+                        goal.return_xyz.x,
+                        goal.return_xyz.y,
+                        goal.return_xyz.z,
+                    ],
+                    push_yaw_rad=float(goal.grasp_yaw),
+                    feedback_cb=feedback_cb,
+                    is_cancelled=is_cancelled,
+                )
+            else:
+                success, code, message = execute_pick_and_place(
+                    motion=self._motion,
+                    gripper=self._gripper,
+                    cfg=self._cfg,
+                    grasp_xyz_mm=[goal.grasp_xyz.x, goal.grasp_xyz.y, goal.grasp_xyz.z],
+                    grasp_yaw_rad=float(goal.grasp_yaw),
+                    return_xyz_mm=[goal.return_xyz.x, goal.return_xyz.y, goal.return_xyz.z],
+                    return_zyz_deg=[
+                        float(goal.return_zyz_deg[0]),
+                        float(goal.return_zyz_deg[1]),
+                        float(goal.return_zyz_deg[2]),
+                    ],
+                    pre_grasp_width_mm=float(goal.pre_grasp_width_mm),
+                    feedback_cb=feedback_cb,
+                    place_ready_cb=place_ready_cb,
+                    is_cancelled=is_cancelled,
+                )
 
             result_msg.success = success
             result_msg.failure_code = int(code)
