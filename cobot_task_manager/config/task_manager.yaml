@@ -60,4 +60,10 @@
     service_timeout_sec: 10.0
     action_timeout_sec: 60.0
 
+    # Post-run verification. 사이클 마무리에서 홈→detect→remaining 계산→부족분 픽
+    # 을 반복. 라운드별 보정 픽 성공 시 다음 라운드 detect에서 remaining=0 되어
+    # 자동 break. 5는 안전 cap.
+    verification_enabled: true
+    max_verification_rounds: 5
+
     autostart: true
