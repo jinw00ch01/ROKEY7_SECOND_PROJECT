@@ -267,14 +267,13 @@ class RobotControlNode(Node):
             self._handle_get_current_pose,
             callback_group=pose_cb_group,
         )
-        # MultiThreaded with >= 2 workers: one for the service handler, one
-        # for the client response. SingleThreadedExecutor would deadlock
-        # because the handler blocks waiting for the response and there is
-        # no second worker to dispatch it.
-        # 한국어: num_threads=2 근거 - 서비스 핸들러가 future를 polling하며
-        # 블록되는 동안, Doosan 응답을 dispatch할 두 번째 워커가 반드시 필요.
-        # SingleThreadedExecutor면 핸들러가 자기 응답을 기다리다 데드락.
-        self._pose_executor = MultiThreadedExecutor(num_threads=2)
+        # MultiThreaded with >= 4 workers: 동일 service request가 ReentrantCallbackGroup에서
+        # 병렬로 dispatch되어 핸들러가 동시에 polling 중인 케이스가 관찰됨. 워커가 2개만
+        # 있으면 양쪽 핸들러가 sleep+poll로 워커를 점유해 Doosan 응답 dispatch가 늦어진다.
+        # 4로 둬서 동시 핸들러 2개 + 응답 dispatch + 여유 1로 dead-lock-free 유지.
+        # 한국어: num_threads=4 근거 - 동시 핸들러 polling으로 워커가 모자라
+        # Doosan 응답 dispatch가 ~2s 지연되는 현상이 관찰됨. 핸들러+응답+여유 만족.
+        self._pose_executor = MultiThreadedExecutor(num_threads=4)
         self._pose_executor.add_node(self._pose_node)
         self._pose_thread = threading.Thread(
             target=self._pose_executor.spin,
