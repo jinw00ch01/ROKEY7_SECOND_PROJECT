@@ -1,0 +1,63 @@
+version: '3.9'
+
+services:
+  # [CPU 서비스] GPU가 없는 환경용 (기본)
+  ros2_dev:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: rokey7_second_project_env:latest
+    container_name: rokey7_dev_container
+    network_mode: "host"
+    privileged: true
+    pid: "host"
+    ipc: "host"
+    profiles: ["cpu"]
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - NETWORK_INTERFACE=${NETWORK_INTERFACE}
+      - USE_CYCLONE_DDS=${USE_CYCLONE_DDS:-true}
+      - ROBOT_IP=${ROBOT_IP}
+      - ARDUINO_PORT=${ARDUINO_PORT}
+      - PULSE_SERVER=unix:${XDG_RUNTIME_DIR}/pulse/native
+    volumes:
+      - .:/home/ros2_ws:rw
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - ${XDG_RUNTIME_DIR}/pulse/native:${XDG_RUNTIME_DIR}/pulse/native:rw
+      - ~/.config/pulse/cookie:/root/.config/pulse/cookie:rw
+      - /dev:/dev:rw
+    stdin_open: true
+    tty: true
+
+  # [GPU 서비스] GPU가 있는 팀원용
+  ros2_gpu:
+    extends:
+      service: ros2_dev
+    container_name: rokey7_dev_container_gpu
+    profiles: ["gpu"]
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu, compute, video, utility]
+
+  portainer:
+    image: portainer/portainer-ce:latest
+    container_name: portainer
+    restart: always
+    ports:
+      - "8000:8000"
+      - "9443:9443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+
+volumes:
+  portainer_data:
