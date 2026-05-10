@@ -90,6 +90,10 @@ const DISPLAY_COPY: Record<
     headline: "듣는 중",
     message: "말씀을 듣고 있어요.",
   },
+  transcribing_state: {
+    headline: "변환 중",
+    message: "들은 내용을 분석하고 있어요.",
+  },
   asking_intensity: {
     headline: "강도 확인",
     message: "그 정도는 어느 정도인가요?",
@@ -97,6 +101,10 @@ const DISPLAY_COPY: Record<
   listening_intensity: {
     headline: "듣는 중",
     message: "정도를 듣고 있어요.",
+  },
+  transcribing_intensity: {
+    headline: "변환 중",
+    message: "들은 내용을 분석하고 있어요.",
   },
   recommending: {
     headline: "분석 중",
@@ -124,8 +132,18 @@ const PROGRESS_STEPS: Array<{
   states: DisplayState[];
 }> = [
   { label: "호출", states: ["idle", "wake_detected"] },
-  { label: "상태 질문", states: ["asking_state", "listening_state"] },
-  { label: "강도 질문", states: ["asking_intensity", "listening_intensity"] },
+  {
+    label: "상태 질문",
+    states: ["asking_state", "listening_state", "transcribing_state"],
+  },
+  {
+    label: "강도 질문",
+    states: [
+      "asking_intensity",
+      "listening_intensity",
+      "transcribing_intensity",
+    ],
+  },
   { label: "추천", states: ["recommending", "result_ready"] },
   { label: "로봇 준비", states: ["dispatching"] },
   { label: "완료", states: ["completed"] },
@@ -254,8 +272,10 @@ function mapDisplayStateToSceneMode(state: DisplayState): RobotMode {
   if (state === "wake_detected") return "wake_detected";
   if (state === "asking_state") return "speaking";
   if (state === "listening_state") return "listening";
+  if (state === "transcribing_state") return "transcribing";
   if (state === "asking_intensity") return "speaking";
   if (state === "listening_intensity") return "listening";
+  if (state === "transcribing_intensity") return "transcribing";
   if (state === "recommending") return "processing";
   if (state === "result_ready") return "processing";
   if (state === "dispatching") return "processing";
@@ -286,6 +306,8 @@ function FixedCamera() {
 function getLightIntensity(state: DisplayState) {
   if (state === "wake_detected") return 1.25;
   if (state === "listening_state" || state === "listening_intensity") return 1.55;
+  if (state === "transcribing_state" || state === "transcribing_intensity")
+    return 1.65;
   if (state === "recommending") return 1.7;
   if (state === "result_ready") return 1.45;
   if (state === "dispatching") return 1.6;

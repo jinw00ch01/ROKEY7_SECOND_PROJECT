@@ -1,10 +1,12 @@
 rules_version = '2';
 
+// 로컬/데모 전용 권한. 인증 없이 robot_session/current에 write 가능 — 공개 배포
+// 환경에서는 Firebase Auth 추가하고 `request.auth != null` 같은 가드를 걸 것.
 service cloud.firestore {
   match /databases/{database}/documents {
     match /robot_session/current {
       allow read: if true;
-      allow write: if false;
+      allow write: if true;
     }
   }
 }

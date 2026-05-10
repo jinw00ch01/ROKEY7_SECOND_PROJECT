@@ -5,9 +5,10 @@ import { VERTICES_PER_SIDE } from "./terrainConstants";
 
 export function getModeIntensity(robotMode: RobotMode) {
   if (robotMode === "wake_detected") return 1.05;
+  if (robotMode === "speaking") return 1.25;
   if (robotMode === "listening") return 1.45;
   if (robotMode === "transcribing") return 1.95;
-  if (robotMode === "processing") return 2.00;
+  if (robotMode === "processing") return 2.0;
   if (robotMode === "completed") return 1.15;
   if (robotMode === "error") return 2.1;
   return 0.65;
@@ -15,6 +16,7 @@ export function getModeIntensity(robotMode: RobotMode) {
 
 export function getVoiceWaveScale(robotMode: RobotMode) {
   if (robotMode === "wake_detected") return 1.1;
+  if (robotMode === "speaking") return 1.5;
   if (robotMode === "listening") return 1.85;
   if (robotMode === "transcribing") return 2.7;
   if (robotMode === "processing") return 3.45;

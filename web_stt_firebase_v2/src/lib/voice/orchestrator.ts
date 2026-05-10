@@ -101,13 +101,17 @@ export function runRecommendationFlow(
     }
   };
 
-  const listen = async (label: string): Promise<string> => {
+  const listen = async (
+    label: string,
+    transcribingState: "transcribing_state" | "transcribing_intensity",
+  ): Promise<string> => {
     checkCancel();
     if (!activeStream) {
       activeStream = await getMicrophoneStream();
     }
     const audio = await recordAudio(RECORD_DURATION_MS, activeStream);
     checkCancel();
+    await updateDisplayState(transcribingState);
     const text = await transcribe(audio, config.openaiApiKey);
     console.info(`[STT] ${label}: ${text}`);
     return text;
@@ -148,7 +152,7 @@ export function runRecommendationFlow(
       await sayIfEnabled(askState);
       await updateDisplayState("listening_state");
 
-      let stateText = await listen("상태");
+      let stateText = await listen("상태", "transcribing_state");
       await publishTranscript(stateText);
 
       const stateResult = await resolveState(stateText, config.openaiApiKey, mode);
@@ -162,7 +166,7 @@ export function runRecommendationFlow(
         await sayIfEnabled(retryPrompt);
         await updateDisplayState("listening_state");
 
-        const retryText = await listen("상태");
+        const retryText = await listen("상태", "transcribing_state");
         const merged = [stateText, retryText].filter(Boolean).join(" ");
         await publishTranscript(merged);
         stateText = merged.trim();
@@ -205,7 +209,7 @@ export function runRecommendationFlow(
       await sayIfEnabled(combinedTtsPrompt);
       await updateDisplayState("listening_intensity");
 
-      let intensityText = await listen("강도");
+      let intensityText = await listen("강도", "transcribing_intensity");
       await publishTranscript(
         [stateText, intensityText].filter(Boolean).join(" "),
       );
@@ -226,7 +230,7 @@ export function runRecommendationFlow(
         await sayIfEnabled(retryPrompt);
         await updateDisplayState("listening_intensity");
 
-        const retryText = await listen("강도");
+        const retryText = await listen("강도", "transcribing_intensity");
         await publishTranscript(
           [stateText, intensityText, retryText].filter(Boolean).join(" "),
         );
