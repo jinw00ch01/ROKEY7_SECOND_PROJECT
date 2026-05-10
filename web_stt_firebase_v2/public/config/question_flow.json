@@ -1,0 +1,8 @@
+{
+  "wake_response": "샤갈! 맞춤 견과류 콤보를 준비해드릴게요.",
+  "ask_state": "샤갈! 오늘 컨디션은 어떤가요?",
+  "ask_intensity": "샤갈! 그 정도는 어느 정도인가요?",
+  "retry_state": "이런! 큰일 났어요! 상태를 다시 말씀해주세요.",
+  "retry_intensity": "이런! 좆됐어요! 정도를 다시 말씀해주세요.",
+  "confirm_template": "샤갈! 말씀하신 상태에 맞춰 {combo_text}를 준비해드릴게요."
+}

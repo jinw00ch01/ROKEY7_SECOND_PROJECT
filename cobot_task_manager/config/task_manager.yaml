@@ -1,7 +1,7 @@
 /**:
   ros__parameters:
     # Order source
-    order_source: "mock"        # mock | db | file
+    order_source: "mock"        # mock | db | file | firestore
     mock_order_almond: 2
     mock_order_cashew: 2
     mock_order_pistachio: 2
@@ -11,6 +11,14 @@
     # forces caller to provide one explicitly via launch arg or override.
     file_order_path: ""
     file_order_require_success: true
+    # FirestoreOrderProvider reads robot_session/current — the same doc
+    # web_stt_firebase_v2 publishes on a successful browser voice order.
+    # Dedupe key is `request_id`; service account path falls back to
+    # GOOGLE_APPLICATION_CREDENTIALS / FIREBASE_SERVICE_ACCOUNT envs when blank.
+    firestore_collection: "robot_session"
+    firestore_document: "current"
+    firestore_service_account_path: ""
+    firestore_require_success: true
 
     # Selection priority within the order book
     class_priority: ["almond", "cashew", "pistachio", "walnut"]

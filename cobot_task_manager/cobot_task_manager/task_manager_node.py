@@ -37,7 +37,13 @@ from cobot_msgs.action import PickAndPlace
 from cobot_msgs.srv import DetectOnce
 
 from .cluster_policy import choose_cluster_plan
-from .order_provider import DBOrderProvider, FileOrderProvider, MockOrderProvider, OrderBook
+from .order_provider import (
+    DBOrderProvider,
+    FileOrderProvider,
+    FirestoreOrderProvider,
+    MockOrderProvider,
+    OrderBook,
+)
 from .pick_offsets import load_pick_offsets
 from .retry_policy import FailureAction, RetryPolicy
 from .target_selector import WorkspaceBox, choose_target
@@ -54,7 +60,7 @@ class TaskManagerNode(Node):
         super().__init__("task_manager_node")
 
         # Parameters
-        self.declare_parameter("order_source", "mock")          # mock | db | file
+        self.declare_parameter("order_source", "mock")          # mock | db | file | firestore
         self.declare_parameter("mock_order_almond", 2)
         self.declare_parameter("mock_order_cashew", 2)
         self.declare_parameter("mock_order_pistachio", 2)
@@ -63,6 +69,12 @@ class TaskManagerNode(Node):
         # FileOrderProvider: reads cobot_voice/output/latest_order.json
         self.declare_parameter("file_order_path", "")
         self.declare_parameter("file_order_require_success", True)
+        # FirestoreOrderProvider: reads robot_session/current that the
+        # browser-side voice flow (web_stt_firebase_v2) publishes.
+        self.declare_parameter("firestore_collection", "robot_session")
+        self.declare_parameter("firestore_document", "current")
+        self.declare_parameter("firestore_service_account_path", "")
+        self.declare_parameter("firestore_require_success", True)
 
         self.declare_parameter(
             "class_priority",
@@ -164,6 +176,22 @@ class TaskManagerNode(Node):
                 ),
             )
             self.get_logger().info(f"FileOrderProvider reading {file_path}")
+        elif order_source == "firestore":
+            collection = str(self.get_parameter("firestore_collection").value)
+            document = str(self.get_parameter("firestore_document").value)
+            self._order_provider = FirestoreOrderProvider(
+                collection=collection,
+                document=document,
+                service_account_path=str(
+                    self.get_parameter("firestore_service_account_path").value
+                ),
+                require_success=bool(
+                    self.get_parameter("firestore_require_success").value
+                ),
+            )
+            self.get_logger().info(
+                f"FirestoreOrderProvider reading {collection}/{document}"
+            )
         else:
             raise ValueError(f"unknown order_source={order_source!r}")
 

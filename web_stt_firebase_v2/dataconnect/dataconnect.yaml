@@ -1,0 +1,13 @@
+specVersion: "v1"
+serviceId: "rokey-cobot2-service"
+location: "asia-northeast3"
+schemas:
+  - source: "./schema"
+    datasource:
+      postgresql:
+        database: "rokey-cobot2-database"
+        cloudSql:
+          instanceId: "rokey-cobot2-instance"
+          # schemaValidation: "STRICT"     # STRICT mode makes Postgres schema match Data Connect exactly.
+          # schemaValidation: "COMPATIBLE" # COMPATIBLE mode makes Postgres schema compatible with Data Connect.
+connectorDirs: ["./example"]
