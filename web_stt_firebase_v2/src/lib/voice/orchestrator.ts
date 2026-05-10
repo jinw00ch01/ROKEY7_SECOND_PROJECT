@@ -27,6 +27,7 @@ import {
   publishTranscript,
   resetSession,
   updateDisplayState,
+  waitForRobotCompletion,
   type SessionOrder,
 } from "./session";
 import { speak } from "./tts";
@@ -76,12 +77,23 @@ class CancelledError extends Error {
   }
 }
 
+const RESULT_DISPLAY_MS = 5000;
+
 export function runRecommendationFlow(
   config: OrchestratorConfig,
 ): OrchestratorHandle {
   let cancelled = false;
   let activeWake: WakeWordController | null = null;
   let activeStream: MediaStream | null = null;
+  let idleResetTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const cancellableSleep = (ms: number) =>
+    new Promise<void>((resolve) => {
+      idleResetTimer = setTimeout(() => {
+        idleResetTimer = null;
+        resolve();
+      }, ms);
+    });
 
   const ttsEnabled = config.ttsEnabled !== false;
 
@@ -285,7 +297,16 @@ export function runRecommendationFlow(
         if (config.onDispatch) {
           await publishDispatching(order);
           await config.onDispatch(order);
-          await publishCompleted(order);
+          // /task/start 응답은 ack에 불과하다 — 실제 동작이 끝났는지는
+          // firebase_status_bridge가 쓰는 robot_state=task_done/error를 봐야 안다.
+          const completion = await waitForRobotCompletion();
+          if (completion === "done") {
+            await publishCompleted(order);
+          } else if (completion === "error") {
+            await publishError("로봇 동작 중 오류가 발생했습니다.");
+          } else {
+            await publishError("로봇 동작 응답이 시간 내에 오지 않았습니다.");
+          }
         }
       } else {
         await publishError("추천 결과를 생성하지 못했습니다.");
@@ -297,12 +318,27 @@ export function runRecommendationFlow(
         await updateDisplayState("idle");
         return null;
       }
+      // publishError가 Firestore에 에러를 띄우고, finally 블록이 5초 뒤 idle로
+      // reset한다. 굳이 다시 throw하지 않으면 hook은 phase를 idle로 두고 다음
+      // 사이클을 받을 수 있다.
       const message = error instanceof Error ? error.message : String(error);
+      console.warn("Voice flow failed:", message);
       await publishError(message);
-      throw error;
+      return null;
     } finally {
       releaseStream();
       if (activeWake) activeWake.cancel();
+      // 결과 화면(완료/에러)을 잠깐 보여준 뒤 자동으로 idle로 reset해서
+      // 새로고침해도 stale 상태가 남지 않도록 한다. cancel()이 들어오면
+      // 타이머는 즉시 끊는다.
+      if (!cancelled) {
+        await cancellableSleep(RESULT_DISPLAY_MS);
+      }
+      try {
+        await resetSession();
+      } catch (error) {
+        console.warn("resetSession failed at flow end:", error);
+      }
     }
   })();
 
@@ -310,6 +346,10 @@ export function runRecommendationFlow(
     result,
     cancel: () => {
       cancelled = true;
+      if (idleResetTimer) {
+        clearTimeout(idleResetTimer);
+        idleResetTimer = null;
+      }
       if (activeWake) activeWake.cancel();
       releaseStream();
     },

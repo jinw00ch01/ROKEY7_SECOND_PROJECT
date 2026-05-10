@@ -1,4 +1,4 @@
-import { doc, serverTimestamp, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, serverTimestamp, setDoc } from "firebase/firestore";
 import { db } from "../firebase";
 import type {
   CategoryId,
@@ -166,10 +166,50 @@ export async function publishRecommendationResult(order: SessionOrder) {
 }
 
 export async function publishDispatching(order: SessionOrder) {
-  await updateDisplayState(
-    "dispatching",
-    orderFields(order, order.confirm_message ?? ""),
-  );
+  // 이전 사이클의 robot_state(task_done 등)가 남아 있으면 곧바로 false-positive로
+  // 잡혀버리므로 dispatch 직전에 비워둔다. firebase_status_bridge가 진행에 따라
+  // detecting/picking/placing으로 덮어쓴다.
+  await updateDisplayState("dispatching", {
+    ...orderFields(order, order.confirm_message ?? ""),
+    robot_state: "",
+  });
+}
+
+export type RobotCompletionResult = "done" | "error" | "timeout";
+
+export function waitForRobotCompletion(
+  timeoutMs: number = 180_000,
+): Promise<RobotCompletionResult> {
+  return new Promise((resolve) => {
+    let settled = false;
+    let unsub: (() => void) | null = null;
+    const finish = (result: RobotCompletionResult) => {
+      if (settled) return;
+      settled = true;
+      try {
+        unsub?.();
+      } catch {
+        /* noop */
+      }
+      clearTimeout(timer);
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish("timeout"), timeoutMs);
+
+    unsub = onSnapshot(
+      sessionRef(),
+      (snapshot) => {
+        const data = snapshot.data() ?? {};
+        const robotState = data.robot_state;
+        if (robotState === "task_done") finish("done");
+        else if (robotState === "error") finish("error");
+      },
+      (error) => {
+        console.warn("waitForRobotCompletion subscription error:", error);
+        finish("error");
+      },
+    );
+  });
 }
 
 export async function publishCompleted(order: SessionOrder) {

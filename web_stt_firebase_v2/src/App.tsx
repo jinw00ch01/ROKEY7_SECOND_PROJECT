@@ -145,7 +145,7 @@ const PROGRESS_STEPS: Array<{
     ],
   },
   { label: "추천", states: ["recommending", "result_ready"] },
-  { label: "로봇 준비", states: ["dispatching"] },
+  { label: "로봇 동작 중", states: ["dispatching"] },
   { label: "완료", states: ["completed"] },
 ];
 
