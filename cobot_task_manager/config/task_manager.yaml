@@ -1,7 +1,7 @@
 /**:
   ros__parameters:
     # Order source
-    order_source: "mock"        # mock | db | file | firestore
+    order_source: "mock"        # mock | db | file | firestore | supabase
     mock_order_almond: 2
     mock_order_cashew: 2
     mock_order_pistachio: 2
@@ -19,6 +19,17 @@
     firestore_document: "current"
     firestore_service_account_path: ""
     firestore_require_success: true
+    # SupabaseOrderProvider — robot_session.current 단일 행을 읽는다.
+    # web_stt_supabase_v2가 publishRecommendationResult로 채운 그 행과 동일.
+    # request_id로 dedup, success=false면 거부.
+    supabase_require_success: true
+
+    # cobot_db (Supabase) — exception_logs / inventory persistence.
+    # cobot_db 패키지가 설치돼 있어야 하고 .env(SUPABASE_URL, SUPABASE_KEY)가
+    # 필요하다. 모든 DB 호출은 swallow되므로 false여도 픽 사이클은 동일하게
+    # 동작한다. db_env_path 빈 문자열이면 노드 실행 디렉터리의 .env 사용.
+    db_logging_enabled: true
+    db_env_path: ""
 
     # Selection priority within the order book
     class_priority: ["almond", "cashew", "pistachio", "walnut"]

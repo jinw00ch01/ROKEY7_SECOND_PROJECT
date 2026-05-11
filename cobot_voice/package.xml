@@ -11,6 +11,9 @@
   <depend>std_msgs</depend>
   <depend>cobot_msgs</depend>
   <exec_depend>python3-dotenv</exec_depend>
+  <!-- supabase_status_bridge depends on cobot_db (lazy import; node still
+       starts and no-ops if cobot_db is missing). -->
+  <exec_depend>cobot_db</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

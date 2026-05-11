@@ -41,6 +41,7 @@ def generate_launch_description() -> LaunchDescription:
         "order_source",
         "file_order_path",
         "enable_firebase_status_bridge",
+        "enable_supabase_status_bridge",
     ]
 
     args = [
@@ -55,7 +56,7 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument(
             "order_source",
             default_value="mock",
-            description="task_manager order source: mock | db | file",
+            description="task_manager order source: mock | db | file | firestore | supabase",
         ),
         DeclareLaunchArgument(
             "file_order_path",
@@ -64,11 +65,20 @@ def generate_launch_description() -> LaunchDescription:
         ),
         DeclareLaunchArgument(
             "enable_firebase_status_bridge",
+            default_value="false",
+            description=(
+                "Legacy Firestore status bridge. Default false after the "
+                "Supabase migration; set true only if the web app is still "
+                "on Firestore."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "enable_supabase_status_bridge",
             default_value="true",
             description=(
-                "Run firebase_status_bridge to mirror robot pipeline state to "
-                "Firestore /robot_session/current.robot_state for the web UI. "
-                "Set false to skip; no-ops anyway if Firebase creds missing."
+                "Run supabase_status_bridge to mirror robot pipeline state to "
+                "robot_session.current.robot_state for the web UI. No-ops if "
+                "cobot_db / SUPABASE_KEY are missing; never blocks the robot."
             ),
         ),
         DeclareLaunchArgument(
@@ -158,6 +168,7 @@ def generate_launch_description() -> LaunchDescription:
             forward("order_source"),
             forward("file_order_path"),
             forward("enable_firebase_status_bridge"),
+            forward("enable_supabase_status_bridge"),
         ],
     )
 

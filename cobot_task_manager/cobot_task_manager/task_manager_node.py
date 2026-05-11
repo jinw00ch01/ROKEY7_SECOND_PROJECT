@@ -43,7 +43,16 @@ from .order_provider import (
     FirestoreOrderProvider,
     MockOrderProvider,
     OrderBook,
+    SupabaseOrderProvider,
 )
+
+# cobot_db는 별도 ament_python 패키지(supabase-py 의존). 미설치 환경에서도
+# task_manager가 import만으로 깨지지 않게 lazy fallback. db_logging_enabled가
+# True여도 import 실패 시 경고만 남기고 영속화는 비활성화된다.
+try:
+    from cobot_db import CobotDbManager  # type: ignore
+except ImportError:
+    CobotDbManager = None  # type: ignore
 from .pick_offsets import load_pick_offsets
 from .retry_policy import FailureAction, RetryPolicy
 from .target_selector import WorkspaceBox, choose_target
@@ -60,7 +69,7 @@ class TaskManagerNode(Node):
         super().__init__("task_manager_node")
 
         # Parameters
-        self.declare_parameter("order_source", "mock")          # mock | db | file | firestore
+        self.declare_parameter("order_source", "mock")          # mock | db | file | firestore | supabase
         self.declare_parameter("mock_order_almond", 2)
         self.declare_parameter("mock_order_cashew", 2)
         self.declare_parameter("mock_order_pistachio", 2)
@@ -75,6 +84,16 @@ class TaskManagerNode(Node):
         self.declare_parameter("firestore_document", "current")
         self.declare_parameter("firestore_service_account_path", "")
         self.declare_parameter("firestore_require_success", True)
+        # SupabaseOrderProvider: reads robot_session.current row written by
+        # the post-migration web app (web_stt_supabase_v2). Same schema as the
+        # firestore version, just on Postgres + supabase-py.
+        self.declare_parameter("supabase_require_success", True)
+
+        # cobot_db (Supabase): exception_logs / inventory persistence.
+        # db_env_path 빈 문자열이면 supabase-py가 CWD의 .env를 읽는다.
+        # 노드 init/호출 단계의 모든 DB 에러는 swallow되어 로봇 루프를 막지 않는다.
+        self.declare_parameter("db_logging_enabled", True)
+        self.declare_parameter("db_env_path", "")
 
         self.declare_parameter(
             "class_priority",
@@ -192,6 +211,18 @@ class TaskManagerNode(Node):
             self.get_logger().info(
                 f"FirestoreOrderProvider reading {collection}/{document}"
             )
+        elif order_source == "supabase":
+            # db_env_path 빈 문자열 처리는 SupabaseOrderProvider 측에서 한다.
+            # CobotDbManager는 lazy 초기화이므로 .env 누락 시 첫 fetch()에서 에러.
+            self._order_provider = SupabaseOrderProvider(
+                env_path=str(self.get_parameter("db_env_path").value),
+                require_success=bool(
+                    self.get_parameter("supabase_require_success").value
+                ),
+            )
+            self.get_logger().info(
+                "SupabaseOrderProvider reading robot_session.current"
+            )
         else:
             raise ValueError(f"unknown order_source={order_source!r}")
 
@@ -255,6 +286,30 @@ class TaskManagerNode(Node):
             max_detect_misses=int(self.get_parameter("max_detect_misses").value),
             max_grasp_failures=int(self.get_parameter("max_grasp_failures").value),
         )
+
+        # cobot_db Supabase manager (lazy: client created on first use).
+        # 의도적으로 try/except로 init 자체도 감싼다 — 이 노드는 DB 없어도
+        # 로컬에서 픽 사이클을 돌릴 수 있어야 한다.
+        self._db: Optional["CobotDbManager"] = None
+        if bool(self.get_parameter("db_logging_enabled").value):
+            if CobotDbManager is None:
+                self.get_logger().warn(
+                    "db_logging_enabled=true but cobot_db not importable; "
+                    "exception logs and inventory updates will be skipped"
+                )
+            else:
+                env_path = (
+                    str(self.get_parameter("db_env_path").value).strip() or None
+                )
+                try:
+                    self._db = CobotDbManager(env_path=env_path)
+                    self.get_logger().info("CobotDbManager configured")
+                except Exception as exc:  # noqa: BLE001
+                    self.get_logger().warn(
+                        f"CobotDbManager init failed ({exc}); "
+                        "DB persistence disabled"
+                    )
+                    self._db = None
 
         # ROS interfaces
         # ReentrantCallbackGroup: 서비스/액션 콜백을 동시에 처리 가능하게 한다.
@@ -360,6 +415,57 @@ class TaskManagerNode(Node):
             self.get_logger().warn(f"detect_once not ready: {resp.message}")
             return None
         return resp.objects
+
+    # ----- DB persistence helpers ----------------------------------------
+    # 모든 DB 호출은 swallow된다. Supabase 가용성이 로봇 픽 사이클의 진행
+    # 가능 여부를 결정하면 안 되기 때문 (네트워크/RLS/스키마 문제로
+    # 실험이 멈추는 사고 방지). 실패는 ros warn만 남긴다.
+
+    def _db_log_exception(
+        self,
+        *,
+        task_name: str,
+        state: str,
+        error_code: int = 0,
+        error_msg: Optional[str] = None,
+        target_class: Optional[str] = None,
+        target_xyz: Optional[Dict[str, float]] = None,
+        robot_pose: Optional[Dict[str, float]] = None,
+    ) -> None:
+        if self._db is None:
+            return
+        try:
+            self._db.log_robot_exception(
+                task_name=task_name,
+                state=state,
+                error_code=int(error_code),
+                error_msg=error_msg,
+                target_class=target_class,
+                target_xyz=target_xyz,
+                robot_pose=robot_pose,
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.get_logger().warn(
+                f"db log_robot_exception({task_name}/{state}) failed: {exc}"
+            )
+
+    def _db_update_inventory(
+        self, nut_type: str, amount: int, reason: str,
+    ) -> None:
+        if self._db is None:
+            return
+        try:
+            self._db.update_inventory(
+                nut_type=nut_type, amount=amount, reason=reason
+            )
+        except Exception as exc:  # noqa: BLE001
+            self.get_logger().warn(
+                f"db update_inventory({nut_type},{amount:+d},{reason}) failed: {exc}"
+            )
+
+    @staticmethod
+    def _xyz_dict(x: float, y: float, z: float) -> Dict[str, float]:
+        return {"x": float(x), "y": float(y), "z": float(z)}
 
     # ----- verification helpers ------------------------------------------
 
@@ -625,6 +731,14 @@ class TaskManagerNode(Node):
                         # push 자체가 실패(서버 미가용/타임아웃)이면 ABORT로
                         # 처리. workspace 위반 등은 cluster_policy에서 사전
                         # 차단되므로 여기 도달하면 보통 인프라 문제.
+                        self._db_log_exception(
+                            task_name="cluster_push",
+                            state="MOTION_FAIL",
+                            error_code=0,
+                            error_msg="action_unavailable_or_timeout",
+                            target_class=target_class,
+                            target_xyz=self._xyz_dict(*cluster_plan.entry_xyz_mm),
+                        )
                         self._set_state(TaskState.ABORTED, "cluster_push_failure")
                         self._publish_result(False, "cluster_push_failure")
                         return False
@@ -635,6 +749,14 @@ class TaskManagerNode(Node):
                         self.get_logger().warn(
                             f"cluster push failed code={push_result.failure_code} "
                             f"({push_result.message}) — fall through to pick"
+                        )
+                        self._db_log_exception(
+                            task_name="cluster_push",
+                            state="MOTION_FAIL",
+                            error_code=int(push_result.failure_code),
+                            error_msg=str(push_result.message or ""),
+                            target_class=target_class,
+                            target_xyz=self._xyz_dict(*cluster_plan.push_end_xyz_mm),
                         )
                     else:
                         # push 성공 시 settle 후 재관측 사이클로.
@@ -665,6 +787,14 @@ class TaskManagerNode(Node):
                 self.get_logger().info(
                     f"{target_class} ok, remaining={order.counts[target_class]}"
                 )
+                # Inventory deduction. phase는 "primary" 또는 "verifyN"
+                # (N=1..max_verification_rounds)이라 reason에 그대로 끼워넣어
+                # inventory_logs 시계열에서 어느 라운드 픽인지 식별 가능하다.
+                self._db_update_inventory(
+                    nut_type=target_class,
+                    amount=-1,
+                    reason=f"{phase}_pick_success",
+                )
                 # Settle before next detect: camera frames published mid-
                 # motion are still in perception_transform_node's buffer;
                 # without this delay the next detect_once pairs a stale
@@ -682,6 +812,23 @@ class TaskManagerNode(Node):
             self.get_logger().warn(
                 f"pick failed code={result.failure_code} ({result.message}) -> {decision.value}"
             )
+            # verify 단계에서의 보정 픽 실패만 exception_logs에 기록한다.
+            # primary 단계 실패는 retry_policy가 재시도/skip으로 처리하고,
+            # 결국 verification 라운드에서 COUNT_MISMATCH로 다시 잡히므로
+            # 중복 로그가 된다. verify 단계 실패는 "보정마저 실패"라 별건.
+            if phase != "primary":
+                self._db_log_exception(
+                    task_name="verification_round",
+                    state="MOTION_FAIL",
+                    error_code=int(result.failure_code),
+                    error_msg=f"{phase}: {result.message or ''}",
+                    target_class=target_class,
+                    target_xyz=self._xyz_dict(
+                        candidate.base_xyz.x,
+                        candidate.base_xyz.y,
+                        candidate.base_xyz.z,
+                    ),
+                )
             if decision is FailureAction.SKIP_CLASS:
                 order.mark_skipped(target_class)
             elif decision is FailureAction.ABORT:
@@ -760,6 +907,25 @@ class TaskManagerNode(Node):
                     f"ordered={ordered_counts} initial={initial_counts} "
                     f"final={final_counts} remaining={remaining_counts}"
                 )
+                # 라운드별 부족분을 클래스 단위로 exception_logs에 남긴다.
+                # round_index는 0-based이지만 운영자에게는 1-based가 자연스러워
+                # error_msg에서만 +1로 표시. timestamp(created_at)와 함께
+                # 어느 라운드에서 처음 갭이 잡혔는지 추적할 수 있다.
+                for cls, want in ordered_counts.items():
+                    moved = max(0, int(initial_counts.get(cls, 0))
+                                - int(final_counts.get(cls, 0)))
+                    missing = max(0, int(want) - moved)
+                    if missing > 0:
+                        self._db_log_exception(
+                            task_name="verification_round",
+                            state="COUNT_MISMATCH",
+                            error_code=missing,
+                            error_msg=(
+                                f"round={round_index + 1} ordered={want} "
+                                f"moved={moved} missing={missing}"
+                            ),
+                            target_class=cls,
+                        )
                 correction_order = OrderBook(counts=remaining_counts)
                 if not correction_order.has_remaining():
                     break

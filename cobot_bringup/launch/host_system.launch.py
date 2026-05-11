@@ -39,7 +39,7 @@ def generate_launch_description() -> LaunchDescription:
         DeclareLaunchArgument(
             "order_source",
             default_value="mock",
-            description="mock | db | file. Default mock.",
+            description="mock | db | file | firestore | supabase. Default mock.",
         ),
         DeclareLaunchArgument(
             "file_order_path",
@@ -48,12 +48,21 @@ def generate_launch_description() -> LaunchDescription:
         ),
         DeclareLaunchArgument(
             "enable_firebase_status_bridge",
+            default_value="false",
+            description=(
+                "Legacy Firestore status bridge. Default false after the "
+                "Supabase migration; set true only if you've kept the web "
+                "app on Firestore."
+            ),
+        ),
+        DeclareLaunchArgument(
+            "enable_supabase_status_bridge",
             default_value="true",
             description=(
-                "Run cobot_voice firebase_status_bridge alongside task_manager. "
+                "Run cobot_voice supabase_status_bridge alongside task_manager. "
                 "Mirrors /task/status, /task/result, /conveyor/place_ready into "
-                "/robot_session/current.robot_state for the web UI. No-ops when "
-                "Firebase creds are missing; never blocks the robot pipeline."
+                "robot_session.current.robot_state for the web UI. No-ops when "
+                "cobot_db / SUPABASE_KEY are missing; never blocks the robot."
             ),
         ),
     ]
@@ -81,4 +90,14 @@ def generate_launch_description() -> LaunchDescription:
         condition=IfCondition(LaunchConfiguration("enable_firebase_status_bridge")),
     )
 
-    return LaunchDescription(args + [task_manager, firebase_status_bridge])
+    supabase_status_bridge = Node(
+        package="cobot_voice",
+        executable="supabase_status_bridge",
+        name="supabase_status_bridge",
+        output="screen",
+        condition=IfCondition(LaunchConfiguration("enable_supabase_status_bridge")),
+    )
+
+    return LaunchDescription(
+        args + [task_manager, firebase_status_bridge, supabase_status_bridge]
+    )

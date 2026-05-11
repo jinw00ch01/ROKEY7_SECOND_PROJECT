@@ -1,0 +1,8 @@
+{
+  "intensity_counts": {
+    "low": 3,
+    "normal": 2,
+    "high": 1
+  },
+  "max_total_count": 20
+}
