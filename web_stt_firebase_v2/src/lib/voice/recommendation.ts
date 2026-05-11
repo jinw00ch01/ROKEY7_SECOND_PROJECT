@@ -1,28 +1,8 @@
-import type {
-  CategoryId,
-  Intensity,
-  NutClass,
-  NutComboItem,
-} from "../types";
-
-type CategoriesConfig = {
-  categories: Record<
-    CategoryId,
-    { label_ko: string; keywords: string[]; nut: NutClass }
-  >;
-};
+import type { Intensity, NutClass, NutComboItem } from "../types";
 
 type ComboRules = {
   intensity_counts: Record<Intensity, number>;
   max_total_count: number;
-};
-
-const VALID_INTENSITIES: Intensity[] = ["low", "normal", "high"];
-
-const INTENSITY_KEYWORDS: Record<Intensity, string[]> = {
-  low: ["조금", "약간", "살짝"],
-  normal: ["보통", "그냥", "어느 정도"],
-  high: ["많이", "너무", "매우", "완전", "진짜"],
 };
 
 const NUT_LABELS_KO: Record<NutClass, string> = {
@@ -41,7 +21,6 @@ const COUNT_LABELS_KO: Record<number, string> = {
   6: "여섯 개",
 };
 
-let cachedCategories: CategoriesConfig | null = null;
 let cachedRules: ComboRules | null = null;
 
 async function loadJson<T>(path: string): Promise<T> {
@@ -52,15 +31,6 @@ async function loadJson<T>(path: string): Promise<T> {
   return (await response.json()) as T;
 }
 
-export async function loadCategoriesConfig(): Promise<CategoriesConfig> {
-  if (!cachedCategories) {
-    cachedCategories = await loadJson<CategoriesConfig>(
-      "/config/keyword_categories.json",
-    );
-  }
-  return cachedCategories;
-}
-
 export async function loadComboRules(): Promise<ComboRules> {
   if (!cachedRules) {
     cachedRules = await loadJson<ComboRules>("/config/nut_combo_rules.json");
@@ -68,81 +38,24 @@ export async function loadComboRules(): Promise<ComboRules> {
   return cachedRules;
 }
 
-export function extractCategories(
-  text: string,
-  config: CategoriesConfig,
-): CategoryId[] {
-  const sample = (text ?? "").trim().toLowerCase();
-  if (!sample) return [];
-
-  const matches: Array<{ index: number; category: CategoryId }> = [];
-  for (const [category, info] of Object.entries(config.categories) as Array<
-    [CategoryId, CategoriesConfig["categories"][CategoryId]]
-  >) {
-    let earliest = -1;
-    for (const keyword of info.keywords) {
-      const index = sample.indexOf(keyword.toLowerCase());
-      if (index >= 0 && (earliest === -1 || index < earliest)) {
-        earliest = index;
-      }
-    }
-    if (earliest >= 0) matches.push({ index: earliest, category });
-  }
-
-  return matches.sort((a, b) => a.index - b.index).map((m) => m.category);
-}
-
-export function extractIntensity(text: string): Intensity {
-  const sample = (text ?? "").trim().toLowerCase();
-  if (!sample) return "normal";
-
-  const matches: Array<{ index: number; intensity: Intensity }> = [];
-  for (const intensity of VALID_INTENSITIES) {
-    for (const keyword of INTENSITY_KEYWORDS[intensity]) {
-      const index = sample.indexOf(keyword.toLowerCase());
-      if (index >= 0) matches.push({ index, intensity });
-    }
-  }
-
-  if (!matches.length) return "normal";
-  matches.sort((a, b) => a.index - b.index);
-  return matches[0].intensity;
-}
-
 export function buildCombo(
-  categories: readonly CategoryId[],
+  nuts: readonly NutClass[],
   intensity: Intensity,
   rules: ComboRules,
-  config: CategoriesConfig,
 ): NutComboItem[] {
-  if (!categories.length) return [];
+  if (!nuts.length) return [];
 
   const safeIntensity: Intensity =
     rules.intensity_counts[intensity] !== undefined ? intensity : "normal";
-  const countPerCategory =
+  // intensity_counts는 low=3 / normal=2 / high=1 — 포만감이 낮을수록 더 많이.
+  const countPerNut =
     rules.intensity_counts[safeIntensity] ?? rules.intensity_counts.normal ?? 2;
-  const maxTotal = rules.max_total_count ?? 6;
 
   const counts = new Map<NutClass, number>();
   const ordered: NutClass[] = [];
-  for (const category of categories) {
-    const nut = config.categories[category]?.nut;
-    if (!nut) continue;
+  for (const nut of nuts) {
     if (!counts.has(nut)) ordered.push(nut);
-    counts.set(nut, (counts.get(nut) ?? 0) + countPerCategory);
-  }
-
-  let total = 0;
-  for (const value of counts.values()) total += value;
-  if (total > maxTotal) {
-    for (let i = ordered.length - 1; i >= 0; i--) {
-      const nut = ordered[i];
-      while (total > maxTotal && (counts.get(nut) ?? 0) > 0) {
-        counts.set(nut, (counts.get(nut) ?? 0) - 1);
-        total -= 1;
-      }
-      if (total <= maxTotal) break;
-    }
+    counts.set(nut, (counts.get(nut) ?? 0) + countPerNut);
   }
 
   return ordered

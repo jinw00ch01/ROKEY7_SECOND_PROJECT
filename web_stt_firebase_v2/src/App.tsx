@@ -82,33 +82,33 @@ const DISPLAY_COPY: Record<
     headline: "응답 중",
     message: "맞춤 견과류 콤보를 준비합니다.",
   },
-  asking_state: {
-    headline: "컨디션 확인",
-    message: "오늘 컨디션은 어떤가요?",
+  asking_job: {
+    headline: "직업 확인",
+    message: "당신의 직업은 무엇인가요?",
   },
-  listening_state: {
+  listening_job: {
     headline: "듣는 중",
     message: "말씀을 듣고 있어요.",
   },
-  transcribing_state: {
+  transcribing_job: {
     headline: "변환 중",
     message: "들은 내용을 분석하고 있어요.",
   },
-  asking_intensity: {
-    headline: "강도 확인",
-    message: "그 정도는 어느 정도인가요?",
+  asking_satiety: {
+    headline: "포만감 확인",
+    message: "현재 포만감은 어느 정도인가요?",
   },
-  listening_intensity: {
+  listening_satiety: {
     headline: "듣는 중",
-    message: "정도를 듣고 있어요.",
+    message: "포만감을 듣고 있어요.",
   },
-  transcribing_intensity: {
+  transcribing_satiety: {
     headline: "변환 중",
     message: "들은 내용을 분석하고 있어요.",
   },
   recommending: {
     headline: "분석 중",
-    message: "상태에 맞는 견과류 콤보를 고르고 있어요.",
+    message: "직업과 포만감에 맞는 견과류 콤보를 고르고 있어요.",
   },
   result_ready: {
     headline: "추천 완료",
@@ -133,15 +133,15 @@ const PROGRESS_STEPS: Array<{
 }> = [
   { label: "호출", states: ["idle", "wake_detected"] },
   {
-    label: "상태 질문",
-    states: ["asking_state", "listening_state", "transcribing_state"],
+    label: "직업 질문",
+    states: ["asking_job", "listening_job", "transcribing_job"],
   },
   {
-    label: "강도 질문",
+    label: "포만감 질문",
     states: [
-      "asking_intensity",
-      "listening_intensity",
-      "transcribing_intensity",
+      "asking_satiety",
+      "listening_satiety",
+      "transcribing_satiety",
     ],
   },
   { label: "추천", states: ["recommending", "result_ready"] },
@@ -248,34 +248,32 @@ function updateDisplayPanel(session: RobotSession) {
 }
 
 function resolveSessionTheme(session: RobotSession): RobotSessionTheme {
-  const firstCategory = session.categories[0];
+  if (session.display_state === "dispatching" && session.robot_target_class) {
+    const targetTheme = THEME_BY_CATEGORY[CATEGORY_BY_NUT[session.robot_target_class]];
+    if (targetTheme) return targetTheme;
+  }
+
+  // session.categories는 이제 추천된 견과류 이름(NutClass[]). 첫 번째 너트의
+  // 카테고리를 거쳐 테마를 조회한다. combo는 보조 fallback.
+  const firstCategoryNut = session.categories[0];
   const firstNut = session.combo[0]?.nut;
-  const secondNut = session.combo[1]?.nut;
   const primaryTheme =
-    (firstCategory && THEME_BY_CATEGORY[firstCategory]) ||
+    (firstCategoryNut && THEME_BY_CATEGORY[CATEGORY_BY_NUT[firstCategoryNut]]) ||
     (firstNut && THEME_BY_CATEGORY[CATEGORY_BY_NUT[firstNut]]) ||
     session.theme ||
     DEFAULT_SESSION_THEME;
 
-  if (!secondNut) return primaryTheme;
-
-  const secondTheme = THEME_BY_CATEGORY[CATEGORY_BY_NUT[secondNut]];
-  if (!secondTheme) return primaryTheme;
-
-  return {
-    ...primaryTheme,
-    accent_color: secondTheme.accent_color,
-  };
+  return primaryTheme;
 }
 
 function mapDisplayStateToSceneMode(state: DisplayState): RobotMode {
   if (state === "wake_detected") return "wake_detected";
-  if (state === "asking_state") return "speaking";
-  if (state === "listening_state") return "listening";
-  if (state === "transcribing_state") return "transcribing";
-  if (state === "asking_intensity") return "speaking";
-  if (state === "listening_intensity") return "listening";
-  if (state === "transcribing_intensity") return "transcribing";
+  if (state === "asking_job") return "speaking";
+  if (state === "listening_job") return "listening";
+  if (state === "transcribing_job") return "transcribing";
+  if (state === "asking_satiety") return "speaking";
+  if (state === "listening_satiety") return "listening";
+  if (state === "transcribing_satiety") return "transcribing";
   if (state === "recommending") return "processing";
   if (state === "result_ready") return "processing";
   if (state === "dispatching") return "processing";
@@ -305,8 +303,8 @@ function FixedCamera() {
 
 function getLightIntensity(state: DisplayState) {
   if (state === "wake_detected") return 1.25;
-  if (state === "listening_state" || state === "listening_intensity") return 1.55;
-  if (state === "transcribing_state" || state === "transcribing_intensity")
+  if (state === "listening_job" || state === "listening_satiety") return 1.55;
+  if (state === "transcribing_job" || state === "transcribing_satiety")
     return 1.65;
   if (state === "recommending") return 1.7;
   if (state === "result_ready") return 1.45;
@@ -384,7 +382,10 @@ export default function App() {
     wakeWordSupported,
   } = useVoiceOrchestrator();
   const activeNut =
-    robotSession.theme.primary_nut || robotSession.combo[0]?.nut || "";
+    (robotSession.display_state === "dispatching" && robotSession.robot_target_class) ||
+    robotSession.theme.primary_nut ||
+    robotSession.combo[0]?.nut ||
+    "";
   const terrainColorCommand = getTerrainColorCommand(activeNut);
   const display = setDisplayState(robotSession.display_state, robotSession);
   const resolvedTheme = resolveSessionTheme(robotSession);
@@ -395,8 +396,8 @@ export default function App() {
   );
   const transcriptDisplay = showTranscript(robotSession.transcript);
   const isListening =
-    robotSession.display_state === "listening_state" ||
-    robotSession.display_state === "listening_intensity";
+    robotSession.display_state === "listening_job" ||
+    robotSession.display_state === "listening_satiety";
   const isLoading = robotSession.display_state === "recommending";
 
   return (
@@ -491,10 +492,14 @@ export default function App() {
               >
                 <div
                   style={{
+                    // complete = accent의 40% alpha. 모든 테마에서 active(가득찬 accent)
+                    // 보다 한 단계 흐리지만 dim보다는 밝아서 "한 칸씩 차오르는" 시각을
+                    // 일관되게 유지한다. (default 테마의 secondary가 primary와 너무
+                    // 가까워서 complete 칸이 꺼진 듯 보이던 이슈 해결.)
                     background: step.isActive
                       ? themeStyle.accentColor
                       : step.isComplete
-                        ? themeStyle.secondaryColor
+                        ? `${themeStyle.accentColor}66`
                         : "rgba(235, 248, 255, 0.22)",
                     borderRadius: 999,
                     height: 4,

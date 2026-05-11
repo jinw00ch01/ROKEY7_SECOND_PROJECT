@@ -1,19 +1,16 @@
-import type { CategoryId, Intensity, NutComboItem } from "../types";
+import type { Intensity, NutClass, NutComboItem } from "../types";
 import {
-  analyzeIntensity,
-  analyzeState,
-  matchMenuIntensity,
-  matchMenuState,
-  type IntensityAnalysis,
-  type StateAnalysis,
+  analyzeJob,
+  analyzeSatiety,
+  matchMenuJob,
+  matchMenuSatiety,
+  type JobAnalysis,
+  type SatietyAnalysis,
 } from "./llm";
 import { getMessage } from "./questionFlow";
 import {
   buildCombo,
-  extractCategories,
-  extractIntensity,
   formatComboText,
-  loadCategoriesConfig,
   loadComboRules,
 } from "./recommendation";
 import { getMicrophoneStream, recordAudio } from "./recorder";
@@ -45,13 +42,25 @@ function generateRequestId(): string {
   );
 }
 
-const MENU_ASK_STATE =
-  "오늘 컨디션을 골라주세요. " +
-  "1번 피로, 2번 혈당, 3번 다이어트, 4번 집중. " +
+const MENU_ASK_JOB =
+  "당신의 직업을 골라주세요. " +
+  "1번 교사, 2번 개발자, 3번 운동선수, 4번 학생. " +
   "번호나 키워드로 답해주세요.";
-const MENU_ASK_INTENSITY =
-  "정도를 골라주세요. 1번 약하게, 2번 보통, 3번 많이. " +
+const MENU_ASK_SATIETY =
+  "포만감을 골라주세요. 1번 적음, 2번 보통, 3번 배부름. " +
   "번호나 키워드로 답해주세요.";
+
+const ALL_NUTS: NutClass[] = ["almond", "cashew", "pistachio", "walnut"];
+
+function sampleRandomNuts(count: number): NutClass[] {
+  // AI가 직업을 못 알아들었을 때 마지막 fallback: 견과류 중 무작위 N개.
+  const pool = [...ALL_NUTS];
+  for (let i = pool.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [pool[i], pool[j]] = [pool[j], pool[i]];
+  }
+  return pool.slice(0, Math.max(0, Math.min(count, pool.length)));
+}
 
 export type OrchestratorConfig = {
   openaiApiKey: string;
@@ -115,7 +124,7 @@ export function runRecommendationFlow(
 
   const listen = async (
     label: string,
-    transcribingState: "transcribing_state" | "transcribing_intensity",
+    transcribingState: "transcribing_job" | "transcribing_satiety",
   ): Promise<string> => {
     checkCancel();
     if (!activeStream) {
@@ -158,132 +167,120 @@ export function runRecommendationFlow(
       await sayIfEnabled(wakeResponse);
 
       const mode = config.promptMode ?? "freeform";
-      const askState =
-        mode === "menu" ? MENU_ASK_STATE : await getMessage("ask_state");
-      await publishQuestion(askState, "asking_state");
-      await sayIfEnabled(askState);
-      await updateDisplayState("listening_state");
+      const askJob =
+        mode === "menu" ? MENU_ASK_JOB : await getMessage("ask_job");
+      await publishQuestion(askJob, "asking_job");
+      await sayIfEnabled(askJob);
+      await updateDisplayState("listening_job");
 
-      let stateText = await listen("상태", "transcribing_state");
-      await publishTranscript(stateText);
+      let jobText = await listen("직업", "transcribing_job");
+      await publishTranscript(jobText);
 
-      const stateResult = await resolveState(stateText, config.openaiApiKey, mode);
+      const jobResult = await resolveJob(jobText, config.openaiApiKey, mode);
 
-      let category = stateResult.category;
-      let reasoningMessage = stateResult.reasoning_message || "상태를 파악하기 어렵네요.";
+      let recommendedNuts = jobResult.recommended_nuts;
+      let reasoningMessage =
+        jobResult.reasoning_message || "직업을 파악하기 어렵네요.";
 
-      if (mode === "menu" && !category) {
-        const retryPrompt = await getMessage("retry_state");
-        await publishQuestion(retryPrompt, "asking_state");
+      if (mode === "menu" && !recommendedNuts.length) {
+        const retryPrompt = await getMessage("retry_job");
+        await publishQuestion(retryPrompt, "asking_job");
         await sayIfEnabled(retryPrompt);
-        await updateDisplayState("listening_state");
+        await updateDisplayState("listening_job");
 
-        const retryText = await listen("상태", "transcribing_state");
-        const merged = [stateText, retryText].filter(Boolean).join(" ");
+        const retryText = await listen("직업", "transcribing_job");
+        const merged = [jobText, retryText].filter(Boolean).join(" ");
         await publishTranscript(merged);
-        stateText = merged.trim();
+        jobText = merged.trim();
 
-        const retryResult = await resolveState(retryText, config.openaiApiKey, mode);
-        category = retryResult.category;
+        const retryResult = await resolveJob(retryText, config.openaiApiKey, mode);
+        recommendedNuts = retryResult.recommended_nuts;
         reasoningMessage = retryResult.reasoning_message || reasoningMessage;
       }
 
-      const categories: CategoryId[] = category ? [category] : [];
-
-      if (!categories.length) {
-        const order: SessionOrder = {
-          request_id: requestId,
-          recognized_text: stateText,
-          categories: [],
-          intensity: "normal",
-          combo: [],
-          combo_text: "",
-          success: false,
-        };
-        await publishError("상태 카테고리를 찾지 못했습니다.");
-        await sayIfEnabled(reasoningMessage);
-        return order;
+      if (!recommendedNuts.length) {
+        // v1 동작과 일치: AI가 직업을 파악 못해도 사이클을 끊지 않고 무작위
+        // 2종을 골라 진행한다. UX는 reasoningMessage로 안내.
+        recommendedNuts = sampleRandomNuts(2);
+        reasoningMessage =
+          "직업을 정확히 파악하지 못해 무작위로 2가지를 골라 준비해 드릴게요.";
+        console.info("[JobAnalyzer] empty result; random fallback:", recommendedNuts);
       }
 
-      await updateDisplayState("asking_intensity", {
-        categories,
-        theme: buildTheme(categories, []),
+      await updateDisplayState("asking_satiety", {
+        categories: recommendedNuts,
+        theme: buildTheme(recommendedNuts, []),
       });
 
-      const simpleIntensityPrompt =
-        mode === "menu" ? MENU_ASK_INTENSITY : await getMessage("ask_intensity");
+      const simpleSatietyPrompt =
+        mode === "menu" ? MENU_ASK_SATIETY : await getMessage("ask_satiety");
       const combinedTtsPrompt =
         mode === "menu"
-          ? simpleIntensityPrompt
-          : `${reasoningMessage} ${simpleIntensityPrompt}`;
+          ? simpleSatietyPrompt
+          : `${reasoningMessage} ${simpleSatietyPrompt}`;
 
-      await publishQuestion(simpleIntensityPrompt, "asking_intensity");
+      await publishQuestion(simpleSatietyPrompt, "asking_satiety");
       await sayIfEnabled(combinedTtsPrompt);
-      await updateDisplayState("listening_intensity");
+      await updateDisplayState("listening_satiety");
 
-      let intensityText = await listen("강도", "transcribing_intensity");
+      let satietyText = await listen("포만감", "transcribing_satiety");
       await publishTranscript(
-        [stateText, intensityText].filter(Boolean).join(" "),
+        [jobText, satietyText].filter(Boolean).join(" "),
       );
 
-      const intensityResult = await resolveIntensity(
-        intensityText,
+      const satietyResult = await resolveSatiety(
+        satietyText,
         config.openaiApiKey,
         mode,
       );
 
-      let intensity: Intensity = intensityResult.intensity || "normal";
-      let intensityReasoning =
-        intensityResult.reasoning_message || "적당량으로 준비해 드릴게요.";
+      let satiety: Intensity = satietyResult.satiety || "normal";
+      let satietyReasoning =
+        satietyResult.reasoning_message || "적당량으로 준비해 드릴게요.";
 
-      if (mode === "menu" && !matchMenuIntensity(intensityText)) {
-        const retryPrompt = await getMessage("retry_intensity");
-        await publishQuestion(retryPrompt, "asking_intensity");
+      if (mode === "menu" && !matchMenuSatiety(satietyText)) {
+        const retryPrompt = await getMessage("retry_satiety");
+        await publishQuestion(retryPrompt, "asking_satiety");
         await sayIfEnabled(retryPrompt);
-        await updateDisplayState("listening_intensity");
+        await updateDisplayState("listening_satiety");
 
-        const retryText = await listen("강도", "transcribing_intensity");
+        const retryText = await listen("포만감", "transcribing_satiety");
         await publishTranscript(
-          [stateText, intensityText, retryText].filter(Boolean).join(" "),
+          [jobText, satietyText, retryText].filter(Boolean).join(" "),
         );
-        intensityText = [intensityText, retryText].filter(Boolean).join(" ").trim();
+        satietyText = [satietyText, retryText].filter(Boolean).join(" ").trim();
 
-        const retryResult = await resolveIntensity(
+        const retryResult = await resolveSatiety(
           retryText,
           config.openaiApiKey,
           mode,
         );
-        intensity = retryResult.intensity || intensity;
-        intensityReasoning = retryResult.reasoning_message || intensityReasoning;
+        satiety = retryResult.satiety || satiety;
+        satietyReasoning = retryResult.reasoning_message || satietyReasoning;
       }
 
       await updateDisplayState("recommending");
 
-      const [categoriesConfig, comboRules] = await Promise.all([
-        loadCategoriesConfig(),
-        loadComboRules(),
-      ]);
-
+      const comboRules = await loadComboRules();
       const combo: NutComboItem[] = buildCombo(
-        categories,
-        intensity,
+        recommendedNuts,
+        satiety,
         comboRules,
-        categoriesConfig,
       );
       const comboText = formatComboText(combo);
-      const recognizedText = [stateText, intensityText].filter(Boolean).join(" ");
-      const success = categories.length > 0 && combo.length > 0;
+      const recognizedText = [jobText, satietyText].filter(Boolean).join(" ");
+      const success = recommendedNuts.length > 0 && combo.length > 0;
 
       const simpleConfirm = await getMessage("confirm_template", {
         combo_text: comboText,
       });
-      const confirmTts = `${intensityReasoning} ${simpleConfirm}`;
+      const confirmTts = `${satietyReasoning} ${simpleConfirm}`;
 
       const order: SessionOrder = {
         request_id: requestId,
         recognized_text: recognizedText,
-        categories,
-        intensity,
+        categories: recommendedNuts,
+        intensity: satiety,
         combo,
         combo_text: comboText,
         confirm_message: simpleConfirm,
@@ -356,44 +353,33 @@ export function runRecommendationFlow(
   };
 }
 
-async function resolveState(
+async function resolveJob(
   text: string,
   apiKey: string,
   mode: "freeform" | "menu",
-): Promise<StateAnalysis> {
+): Promise<JobAnalysis> {
   if (mode === "menu") {
-    const canonical = matchMenuState(text);
+    const canonical = matchMenuJob(text);
     if (canonical) {
-      return { category: canonical, reasoning_message: "" };
+      return { recommended_nuts: canonical, reasoning_message: "" };
     }
-    return { category: "", reasoning_message: "" };
+    return { recommended_nuts: [], reasoning_message: "" };
   }
-
-  // Freeform: keyword fast-path keeps us off the LLM if a strong keyword
-  // already matches; otherwise call OpenAI.
-  const config = await loadCategoriesConfig();
-  const matched = extractCategories(text, config);
-  if (matched.length === 1) {
-    return { category: matched[0], reasoning_message: "" };
-  }
-  return analyzeState(text, apiKey);
+  // Freeform 모드: 항상 AI에게 위임. v1은 키워드 fast-path 없이 LLM 단독 분석.
+  return analyzeJob(text, apiKey);
 }
 
-async function resolveIntensity(
+async function resolveSatiety(
   text: string,
   apiKey: string,
   mode: "freeform" | "menu",
-): Promise<IntensityAnalysis> {
+): Promise<SatietyAnalysis> {
   if (mode === "menu") {
-    const canonical = matchMenuIntensity(text);
+    const canonical = matchMenuSatiety(text);
     if (canonical) {
-      return { intensity: canonical, reasoning_message: "" };
+      return { satiety: canonical, reasoning_message: "" };
     }
-    return { intensity: "normal", reasoning_message: "" };
+    return { satiety: "normal", reasoning_message: "" };
   }
-  const matched = extractIntensity(text);
-  if (matched !== "normal" || /보통|그냥|어느 정도/.test(text)) {
-    return { intensity: matched, reasoning_message: "" };
-  }
-  return analyzeIntensity(text, apiKey);
+  return analyzeSatiety(text, apiKey);
 }

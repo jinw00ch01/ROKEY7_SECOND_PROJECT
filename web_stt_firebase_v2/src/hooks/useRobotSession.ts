@@ -15,12 +15,12 @@ import type {
 const displayStates = new Set<DisplayState>([
   "idle",
   "wake_detected",
-  "asking_state",
-  "listening_state",
-  "transcribing_state",
-  "asking_intensity",
-  "listening_intensity",
-  "transcribing_intensity",
+  "asking_job",
+  "listening_job",
+  "transcribing_job",
+  "asking_satiety",
+  "listening_satiety",
+  "transcribing_satiety",
   "recommending",
   "result_ready",
   "dispatching",
@@ -28,6 +28,8 @@ const displayStates = new Set<DisplayState>([
   "error",
 ]);
 
+// 테마 lookup 인덱스로만 남은 카테고리 키. 사용자 추천 모델은 직업/포만감 기반이며
+// session.categories에는 추천된 견과류 이름(NutClass)이 들어간다.
 const categoryIds = new Set<CategoryId>([
   "fatigue",
   "blood_sugar",
@@ -72,10 +74,13 @@ function normalizeDisplayState(value: unknown): DisplayState {
     : "idle";
 }
 
-function normalizeCategories(value: unknown): CategoryId[] {
+function normalizeCategories(value: unknown): NutClass[] {
+  // 신규 모델: session.categories는 NutClass[] (추천된 견과류 이름 목록).
+  // 구버전 문서가 fatigue 같은 CategoryId 문자열을 들고 있어도 NutClass로
+  // 인정되지 않으므로 자연스럽게 걸러진다.
   if (!Array.isArray(value)) return [];
-  return value.filter((item): item is CategoryId =>
-    categoryIds.has(item as CategoryId),
+  return value.filter((item): item is NutClass =>
+    nutClasses.has(item as NutClass),
   );
 }
 

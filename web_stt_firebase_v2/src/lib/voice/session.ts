@@ -69,7 +69,7 @@ const CATEGORY_BY_NUT: Record<NutClass, CategoryId> = {
 export type SessionOrder = {
   request_id: string;
   recognized_text: string;
-  categories: CategoryId[];
+  categories: NutClass[];
   intensity: Intensity;
   combo: NutComboItem[];
   combo_text: string;
@@ -78,11 +78,14 @@ export type SessionOrder = {
 };
 
 export function buildTheme(
-  categories: readonly CategoryId[],
+  nuts: readonly NutClass[],
   combo: readonly NutComboItem[],
 ): RobotSessionTheme {
-  for (const category of categories) {
-    if (THEMES_BY_CATEGORY[category]) return THEMES_BY_CATEGORY[category];
+  // 추천된 견과류(첫 번째 우선)의 카테고리를 테마 lookup 키로 사용.
+  // CategoryId는 사용자에게 노출되지 않지만 색/테마 매핑 인덱스로 남아 있음.
+  for (const nut of nuts) {
+    const category = CATEGORY_BY_NUT[nut];
+    if (category) return THEMES_BY_CATEGORY[category];
   }
   for (const item of combo) {
     const category = CATEGORY_BY_NUT[item.nut];
@@ -160,7 +163,7 @@ export async function publishRecommendationResult(order: SessionOrder) {
   const confirmMessage =
     order.confirm_message?.trim() ||
     (order.combo_text
-      ? `말씀하신 상태에 맞춰 ${order.combo_text}를 준비해드릴게요.`
+      ? `직업과 포만감에 맞춰 ${order.combo_text}를 준비해드릴게요.`
       : "");
   await updateDisplayState("result_ready", orderFields(order, confirmMessage));
 }

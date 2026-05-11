@@ -1,47 +1,45 @@
-import type { CategoryId, Intensity } from "../types";
+import type { Intensity, NutClass } from "../types";
 
 const CHAT_URL = "https://api.openai.com/v1/chat/completions";
 
-const STATE_PROMPT = `사용자의 기분, 상태, 또는 목적을 나타내는 문장을 분석하여, 가장 적절한 카테고리를 하나 선택하고 판단 근거와 함께 어떤 견과류를 준비할지 자연스러운 안내 멘트를 작성해주세요.
+const JOB_PROMPT = `사용자의 직업을 묻는 질문에 대한 답변을 분석하여, 직업 특성에 맞는 견과류를 1가지에서 최대 4가지까지 추천하고 판단 근거와 함께 안내 멘트를 작성해주세요.
 
-<선택 가능한 카테고리>
-- fatigue (피로/회복) -> 캐슈넛
-- blood_sugar (혈당 관리) -> 아몬드
-- diet (다이어트/체중) -> 피스타치오
-- focus (집중/두뇌) -> 호두
+<추천 가능한 견과류 종류>
+- almond (아몬드)
+- cashew (캐슈넛)
+- pistachio (피스타치오)
+- walnut (호두)
 
 <출력 형식 (반드시 JSON 형식으로 출력)>
 {
-  "category": "fatigue",
-  "reasoning_message": "요즘 많이 피곤하시군요. 피로 회복에 도움을 주는 캐슈넛을 준비해 드릴게요."
+  "job": "교사",
+  "recommended_nuts": ["walnut", "cashew"],
+  "reasoning_message": "말씀을 많이 하시고 에너지가 필요하신 교사분이군요. 두뇌 회전에 좋은 호두와 피로 회복을 돕는 캐슈넛을 준비해 드릴게요."
 }
 
 <사용자 입력>
 "{user_input}"`;
 
-const INTENSITY_PROMPT = `사용자가 원하는 견과류의 양을 나타내는 문장을 분석하여, 양(강도)을 판단하고 판단 근거와 결과를 포함한 자연스러운 안내 멘트를 작성해주세요.
+const SATIETY_PROMPT = `사용자의 현재 포만감을 나타내는 문장을 분석하여, 포만감 수준을 판단하고 판단 근거와 결과를 포함한 자연스러운 안내 멘트를 작성해주세요.
 
-<양 판단 기준>
-- low (적게): 1개 (예: 조금, 맛만, 하나만)
-- normal (보통): 2개 (예: 적당히, 보통, 알아서)
-- high (많이): 3개 이상 (예: 많이, 듬뿍, 왕창)
+<포만감 수준 기준 (출력되는 satiety 값에 유의하세요)>
+- 적음/배고픔 (견과류 3개씩 제공): low
+- 보통/적당함 (견과류 2개씩 제공): normal
+- 많음/배부름 (견과류 1개씩 제공): high
 
 <출력 형식 (반드시 JSON 형식으로 출력)>
 {
-  "intensity": "high",
-  "reasoning_message": "기운이 팍팍 나도록 넉넉하게 준비해 드릴게요."
+  "satiety": "low",
+  "reasoning_message": "많이 출출하시군요. 든든하게 드실 수 있도록 넉넉히 준비해 드릴게요."
 }
 
 <사용자 입력>
 "{user_input}"`;
 
-const VALID_CATEGORIES: CategoryId[] = ["fatigue", "blood_sugar", "diet", "focus"];
-const VALID_INTENSITIES: Intensity[] = ["low", "normal", "high"];
+const VALID_NUTS: NutClass[] = ["almond", "cashew", "pistachio", "walnut"];
+const VALID_SATIETIES: Intensity[] = ["low", "normal", "high"];
 
-async function callChat(
-  prompt: string,
-  apiKey: string,
-): Promise<string> {
+async function callChat(prompt: string, apiKey: string): Promise<string> {
   const response = await fetch(CHAT_URL, {
     method: "POST",
     headers: {
@@ -79,103 +77,130 @@ function safeJsonParse(content: string): Record<string, unknown> | null {
   }
 }
 
-export type StateAnalysis = {
-  category: CategoryId | "";
+export type JobAnalysis = {
+  recommended_nuts: NutClass[];
   reasoning_message: string;
 };
 
-export type IntensityAnalysis = {
-  intensity: Intensity;
+export type SatietyAnalysis = {
+  satiety: Intensity;
   reasoning_message: string;
 };
 
-export async function analyzeState(
+export async function analyzeJob(
   text: string,
   apiKey: string,
-): Promise<StateAnalysis> {
+): Promise<JobAnalysis> {
   if (!apiKey) {
-    return { category: "", reasoning_message: "" };
+    return { recommended_nuts: [], reasoning_message: "" };
   }
   try {
     const content = await callChat(
-      STATE_PROMPT.replace("{user_input}", text),
+      JOB_PROMPT.replace("{user_input}", text),
       apiKey,
     );
     const parsed = safeJsonParse(content);
     if (!parsed) throw new Error("invalid JSON");
-    const category = String(parsed.category ?? "");
-    const validated: CategoryId | "" = (VALID_CATEGORIES as string[]).includes(
-      category,
-    )
-      ? (category as CategoryId)
-      : "";
+    const rawNuts = Array.isArray(parsed.recommended_nuts)
+      ? parsed.recommended_nuts
+      : [];
+    const recommended_nuts = rawNuts
+      .map((value) => String(value))
+      .filter((value): value is NutClass =>
+        (VALID_NUTS as string[]).includes(value),
+      );
     return {
-      category: validated,
+      recommended_nuts,
       reasoning_message: String(parsed.reasoning_message ?? ""),
     };
   } catch (error) {
-    console.warn("StateAnalyzer failed:", error);
+    console.warn("JobAnalyzer failed:", error);
     return {
-      category: "",
-      reasoning_message: "잘 알아듣지 못했지만, 기본 견과류를 준비해 드릴게요.",
+      recommended_nuts: [],
+      reasoning_message: "직업을 파악하기 어렵네요.",
     };
   }
 }
 
-export async function analyzeIntensity(
+export async function analyzeSatiety(
   text: string,
   apiKey: string,
-): Promise<IntensityAnalysis> {
+): Promise<SatietyAnalysis> {
   if (!apiKey) {
-    return { intensity: "normal", reasoning_message: "" };
+    return { satiety: "normal", reasoning_message: "" };
   }
   try {
     const content = await callChat(
-      INTENSITY_PROMPT.replace("{user_input}", text),
+      SATIETY_PROMPT.replace("{user_input}", text),
       apiKey,
     );
     const parsed = safeJsonParse(content);
     if (!parsed) throw new Error("invalid JSON");
-    const raw = String(parsed.intensity ?? "normal");
-    const validated: Intensity = (VALID_INTENSITIES as string[]).includes(raw)
+    const raw = String(parsed.satiety ?? "normal");
+    const validated: Intensity = (VALID_SATIETIES as string[]).includes(raw)
       ? (raw as Intensity)
       : "normal";
     return {
-      intensity: validated,
+      satiety: validated,
       reasoning_message: String(parsed.reasoning_message ?? ""),
     };
   } catch (error) {
-    console.warn("IntensityAnalyzer failed:", error);
+    console.warn("SatietyAnalyzer failed:", error);
     return {
-      intensity: "normal",
+      satiety: "normal",
       reasoning_message: "보통 양으로 준비해 드릴게요.",
     };
   }
 }
 
-const MENU_STATE_CHOICES: Array<[CategoryId, string[]]> = [
-  ["fatigue", ["1", "1번", "일번", "첫째", "피로", "피곤"]],
-  ["blood_sugar", ["2", "2번", "이번째", "둘째", "혈당", "당분"]],
-  ["diet", ["3", "3번", "삼번", "셋째", "다이어트", "체중", "살빼"]],
-  ["focus", ["4", "4번", "사번", "넷째", "집중", "두뇌", "공부"]],
+// 메뉴 모드(menu prompt mode)에서 사용자가 번호/키워드로 답할 때 매칭용.
+// 각 직업은 v1 JobAnalyzer 프롬프트와 동일한 4종(교사/개발자/운동선수/학생)이며,
+// 추천 견과류 리스트는 직업 특성에 매핑한다 — AI 추론 없이 결정.
+const MENU_JOB_CHOICES: Array<[NutClass[], string[]]> = [
+  // 교사: 말 많이 함, 두뇌/회복 — walnut + cashew
+  [["walnut", "cashew"], ["1", "1번", "일번", "첫째", "교사", "선생", "교수"]],
+  // 개발자: 집중/혈당 — walnut + almond
+  [["walnut", "almond"], ["2", "2번", "이번째", "둘째", "개발", "프로그래머", "엔지니어"]],
+  // 운동선수: 회복/체중 — cashew + pistachio
+  [["cashew", "pistachio"], ["3", "3번", "삼번", "셋째", "운동선수", "운동", "선수", "athlete"]],
+  // 학생: 집중/혈당 — walnut + almond
+  [["walnut", "almond"], ["4", "4번", "사번", "넷째", "학생", "수험생"]],
 ];
 
-const MENU_INTENSITY_CHOICES: Array<[Intensity, string[]]> = [
-  ["low", ["1", "1번", "일번", "low", "조금", "약간", "약하", "맛만", "적게"]],
+const MENU_SATIETY_CHOICES: Array<[Intensity, string[]]> = [
+  ["low", ["1", "1번", "일번", "low", "적음", "조금", "배고", "출출", "허기"]],
   ["normal", ["2", "2번", "이번째", "normal", "보통", "적당", "그냥"]],
-  ["high", ["3", "3번", "삼번", "high", "많이", "듬뿍", "잔뜩", "왕창", "강하"]],
+  ["high", ["3", "3번", "삼번", "high", "배부", "많이", "포만", "가득"]],
 ];
 
-function matchMenu<T extends string>(
-  text: string,
-  choices: ReadonlyArray<readonly [T, readonly string[]]>,
-): T | null {
+function tokenize(sample: string): Set<string> {
+  return new Set(
+    sample.split(/[\s,.?!　]+/u).filter((part) => part.length > 0),
+  );
+}
+
+export function matchMenuJob(text: string): NutClass[] | null {
   const sample = (text ?? "").trim().toLowerCase();
   if (!sample) return null;
-  const tokens = new Set(
-    sample.split(/[\s,.?!\u3000]+/u).filter((part) => part.length > 0),
-  );
-  for (const [canonical, keywords] of choices) {
+  const tokens = tokenize(sample);
+  for (const [nuts, keywords] of MENU_JOB_CHOICES) {
+    for (const kw of keywords) {
+      if (!kw) continue;
+      if (kw.length === 1 && kw.charCodeAt(0) < 128) {
+        if (tokens.has(kw)) return nuts;
+      } else if (sample.includes(kw)) {
+        return nuts;
+      }
+    }
+  }
+  return null;
+}
+
+export function matchMenuSatiety(text: string): Intensity | null {
+  const sample = (text ?? "").trim().toLowerCase();
+  if (!sample) return null;
+  const tokens = tokenize(sample);
+  for (const [canonical, keywords] of MENU_SATIETY_CHOICES) {
     for (const kw of keywords) {
       if (!kw) continue;
       if (kw.length === 1 && kw.charCodeAt(0) < 128) {
@@ -186,12 +211,4 @@ function matchMenu<T extends string>(
     }
   }
   return null;
-}
-
-export function matchMenuState(text: string): CategoryId | null {
-  return matchMenu(text, MENU_STATE_CHOICES);
-}
-
-export function matchMenuIntensity(text: string): Intensity | null {
-  return matchMenu(text, MENU_INTENSITY_CHOICES);
 }
