@@ -16,10 +16,11 @@
 
 | 문서 | 목적 |
 |---|---|
-| `docs/01_system_architecture.md` (이 파일) | 시스템이 무엇을 하는지와 그 이유 |
+| `docs/01_system_architecture.md` (이 파일) | 시스템이 무엇을 하는지와 그 이유 (Firestore 경로 기준) |
 | `docs/02_ros_node_architecture.md` | 노드별 ROS 인터페이스 레퍼런스 |
 | `docs/03_run_manual.md` | 단계별 운영자 실행 순서 |
 | `docs/04_validation_checklist.md` | 사전 점검 테스트 체크리스트 |
+| `docs/09_supabase_migration.md` | **Supabase 경로**의 모든 차이점 (브랜치/main 머지됨). Firestore 대체 백엔드. |
 | `docs/cleanup_deletion_proposal.md` | 아카이브되었거나 제거 대상으로 표시된 파일에 대한 삭제 계획 |
 | `_archive_cleanup/<YYYYMMDD>/cleanup_manifest.md` | cleanup 배치별 manifest — 아카이브된 모든 파일에 대한 사유 / 근거 / 리스크 |
 
