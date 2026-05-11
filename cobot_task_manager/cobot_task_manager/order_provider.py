@@ -16,10 +16,11 @@ share the `OrderBook` data class:
 from __future__ import annotations
 
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Dict, Iterable, Optional, Protocol
+from typing import Any, Callable, Dict, Iterable, Optional, Protocol
 
 
 _NUT_CLASSES = frozenset({"almond", "cashew", "pistachio", "walnut"})
@@ -195,6 +196,106 @@ class FileOrderProvider:
             raise RuntimeError(
                 f"order request_id {request_id!r} already processed; "
                 "save a new latest_order.json before re-fetching"
+            )
+
+        combo = data.get("combo")
+        if not isinstance(combo, list) or not combo:
+            raise RuntimeError("order has empty or missing 'combo'")
+
+        counts: Dict[str, int] = {}
+        for item in combo:
+            if not isinstance(item, dict):
+                continue
+            nut = item.get("nut")
+            try:
+                n = int(item.get("count", 0))
+            except (TypeError, ValueError):
+                continue
+            if nut not in _NUT_CLASSES or n <= 0:
+                continue
+            counts[nut] = counts.get(nut, 0) + n
+
+        if not counts:
+            raise RuntimeError(f"order combo has no valid items: {combo!r}")
+
+        if request_id:
+            self._last_request_id = request_id
+        return OrderBook(counts=counts)
+
+
+class FirestoreOrderProvider:
+    """Read the latest browser-published order from Firestore.
+
+    Reads `robot_session/current` (the same doc cobot_voice's web UI
+    subscribes to). When the v2 web app finishes a recommendation it
+    writes `request_id`, `combo`, and `success` into this doc; this
+    provider converts that into the same OrderBook shape the file/db
+    providers return.
+
+    Refuses success=false orders and dedupes by request_id so the same
+    /task/start trigger cannot replay an order twice. The browser must
+    publish a new request_id (i.e. start a new voice session) to be
+    fetched again.
+    """
+
+    def __init__(
+        self,
+        collection: str = "robot_session",
+        document: str = "current",
+        service_account_path: str = "",
+        require_success: bool = True,
+    ) -> None:
+        self._collection = collection
+        self._document = document
+        self._service_account_path = service_account_path or ""
+        self._require_success = bool(require_success)
+        self._last_request_id: Optional[str] = None
+        self._doc_ref: Any = None
+
+    def _ensure_ref(self) -> Any:
+        if self._doc_ref is not None:
+            return self._doc_ref
+
+        # 지연 import: firebase_admin이 없는 환경(예: 단위 테스트)에서도
+        # 모듈 import만으로 깨지지 않게 한다.
+        import firebase_admin
+        from firebase_admin import credentials, firestore
+
+        if not firebase_admin._apps:
+            path = self._service_account_path or os.getenv(
+                "FIREBASE_SERVICE_ACCOUNT", ""
+            )
+            if path:
+                cred = credentials.Certificate(path)
+                firebase_admin.initialize_app(cred)
+            else:
+                # ADC 시나리오 — GOOGLE_APPLICATION_CREDENTIALS 또는 metadata.
+                firebase_admin.initialize_app()
+
+        db = firestore.client()
+        self._doc_ref = db.collection(self._collection).document(self._document)
+        return self._doc_ref
+
+    def fetch(self) -> OrderBook:
+        ref = self._ensure_ref()
+        snapshot = ref.get()
+        if not snapshot.exists:
+            raise RuntimeError(
+                f"firestore doc {self._collection}/{self._document} does not exist"
+            )
+
+        data = snapshot.to_dict() or {}
+
+        if self._require_success and not bool(data.get("success", False)):
+            raise RuntimeError(
+                f"order success=false (text: {data.get('transcript', '')!r})"
+            )
+
+        request_id = str(data.get("request_id", ""))
+        if request_id and request_id == self._last_request_id:
+            raise RuntimeError(
+                f"order request_id {request_id!r} already processed; "
+                "publish a new request_id to firestore before re-fetching"
             )
 
         combo = data.get("combo")

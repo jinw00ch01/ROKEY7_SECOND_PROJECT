@@ -268,3 +268,93 @@ def execute_pick_and_place(
         return False, 3, f"motion error: {exc}"
     except Exception as exc:  # noqa: BLE001
         return False, 3, f"unexpected error: {exc}"
+
+
+def execute_closed_gripper_push(
+    motion,
+    gripper,
+    cfg: MotionConfig,
+    entry_xyz_mm: Sequence[float],
+    push_end_xyz_mm: Sequence[float],
+    push_yaw_rad: float = 0.0,
+    feedback_cb: Optional[Callable[[str], None]] = None,
+    is_cancelled: Optional[Callable[[], bool]] = None,
+):
+    """Closed-gripper push to disperse a clustered nut.
+
+    Stages: close_gripper → approach (above entry) → descend (entry) →
+    push (line to push_end at same z) → retreat (above push_end) → home.
+
+    failure_code mirrors execute_pick_and_place values; grasp-related
+    codes (1, 2) do not apply here so we use 3=motion / 4=cancel /
+    5=workspace.
+    """
+    # 한국어: 군집 분산용 push. pick_and_place와 달리 그리퍼를 닫은 채 진입,
+    # 수평 이동, 후퇴, 홈으로 끝낸다. place 단계가 없고 grip 검증도 없다.
+    def cancelled() -> bool:
+        return bool(is_cancelled and is_cancelled())
+
+    approach_entry = point_yaw_to_posx(entry_xyz_mm, push_yaw_rad, cfg.approach_offset_z_mm)
+    entry_pose = point_yaw_to_posx(entry_xyz_mm, push_yaw_rad)
+    push_end_pose = point_yaw_to_posx(push_end_xyz_mm, push_yaw_rad)
+    above_push_end = point_yaw_to_posx(push_end_xyz_mm, push_yaw_rad, cfg.approach_offset_z_mm)
+
+    violation = _workspace_violation(
+        cfg,
+        [
+            ("entry_xyz", entry_xyz_mm),
+            ("approach_entry_xyz", approach_entry),
+            ("push_end_xyz", push_end_xyz_mm),
+            ("above_push_end_xyz", above_push_end),
+        ],
+    )
+    if violation is not None:
+        return False, 5, violation
+
+    motion.set_speed(cfg.velocity, cfg.acceleration)
+
+    try:
+        _safe_call(feedback_cb, "close_gripper")
+        if cancelled():
+            return False, 4, "cancelled before close"
+        gripper.close()
+        if not wait_until_idle(gripper, timeout_sec=cfg.grip_settle_timeout_sec):
+            return False, 3, "gripper close did not settle in time"
+
+        _safe_call(feedback_cb, "approach")
+        if cancelled():
+            return False, 4, "cancelled before approach"
+        motion.move_line(approach_entry)
+
+        _safe_call(feedback_cb, "descend")
+        if cancelled():
+            return False, 4, "cancelled before descend"
+        motion.set_speed(cfg.velocity_slow, cfg.acceleration_slow)
+        motion.move_line(entry_pose)
+
+        _safe_call(feedback_cb, "push")
+        if cancelled():
+            return False, 4, "cancelled before push"
+        # 한국어: push는 천천히 — 닫힌 그리퍼가 너트를 옆으로 sweep할 때
+        # 가속도가 크면 너트가 튕겨 나가 의도한 분산 거리보다 크게 이동.
+        motion.move_line(push_end_pose)
+
+        _safe_call(feedback_cb, "retreat")
+        motion.set_speed(cfg.velocity, cfg.acceleration)
+        motion.move_line(above_push_end)
+
+        _safe_call(feedback_cb, "home")
+        motion.move_joint(cfg.home_joints_deg)
+
+        # 한국어: 홈 도착 후 그리퍼 다시 열기 — 다음 사이클이 일반 pick으로
+        # 시작될 수 있으므로 닫힌 채로 두면 첫 pre_grasp_width 단계에서 의외의
+        # 큰 이동이 일어난다.
+        gripper.open()
+        wait_until_idle(gripper, timeout_sec=cfg.grip_settle_timeout_sec)
+
+        return True, 0, "ok"
+
+    except MotionError as exc:
+        return False, 3, f"motion error: {exc}"
+    except Exception as exc:  # noqa: BLE001
+        return False, 3, f"unexpected error: {exc}"

@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import threading
 import time
-from typing import Optional
+from typing import Dict, Optional
 
 import rclpy
 from rclpy.action import ActionClient
@@ -36,11 +36,23 @@ from std_srvs.srv import Trigger
 from cobot_msgs.action import PickAndPlace
 from cobot_msgs.srv import DetectOnce
 
-from .order_provider import DBOrderProvider, FileOrderProvider, MockOrderProvider, OrderBook
+from .cluster_policy import choose_cluster_plan
+from .order_provider import (
+    DBOrderProvider,
+    FileOrderProvider,
+    FirestoreOrderProvider,
+    MockOrderProvider,
+    OrderBook,
+)
 from .pick_offsets import load_pick_offsets
 from .retry_policy import FailureAction, RetryPolicy
 from .target_selector import WorkspaceBox, choose_target
 from .task_state import TaskState
+
+# 한국어: robot_control_node와 합의된 sentinel. PickAndPlace 액션을 closed-
+# gripper push로 재해석하기 위한 target_class 약속. 변경 시 robot_control_node
+# CLUSTER_PUSH_TARGET_CLASS도 같이 갱신해야 한다.
+CLUSTER_PUSH_TARGET_CLASS = "__cluster_push__"
 
 
 class TaskManagerNode(Node):
@@ -48,7 +60,7 @@ class TaskManagerNode(Node):
         super().__init__("task_manager_node")
 
         # Parameters
-        self.declare_parameter("order_source", "mock")          # mock | db | file
+        self.declare_parameter("order_source", "mock")          # mock | db | file | firestore
         self.declare_parameter("mock_order_almond", 2)
         self.declare_parameter("mock_order_cashew", 2)
         self.declare_parameter("mock_order_pistachio", 2)
@@ -57,6 +69,12 @@ class TaskManagerNode(Node):
         # FileOrderProvider: reads cobot_voice/output/latest_order.json
         self.declare_parameter("file_order_path", "")
         self.declare_parameter("file_order_require_success", True)
+        # FirestoreOrderProvider: reads robot_session/current that the
+        # browser-side voice flow (web_stt_firebase_v2) publishes.
+        self.declare_parameter("firestore_collection", "robot_session")
+        self.declare_parameter("firestore_document", "current")
+        self.declare_parameter("firestore_service_account_path", "")
+        self.declare_parameter("firestore_require_success", True)
 
         self.declare_parameter(
             "class_priority",
@@ -93,6 +111,15 @@ class TaskManagerNode(Node):
         self.declare_parameter("pick_action_name", "/robot/pick_and_place")
         self.declare_parameter("home_service_name", "/robot/home")
 
+        # Cluster handling — see docs/05_clustered_nuts_handling.md.
+        self.declare_parameter("cluster_enabled", True)
+        self.declare_parameter("cluster_dist_threshold_mm", 35.0)
+        self.declare_parameter("cluster_candidate_offset_mm", 10.0)
+        self.declare_parameter("cluster_push_scale", 1.5)
+        # push z = grasp z + cluster_push_z_offset_mm (양수 = grasp보다 위).
+        self.declare_parameter("cluster_push_z_offset_mm", 2.0)
+        self.declare_parameter("max_cluster_pushes_per_class", 2)
+
         self.declare_parameter("max_detect_misses", 2)
         self.declare_parameter("max_grasp_failures", 2)
         self.declare_parameter("service_timeout_sec", 10.0)
@@ -106,6 +133,12 @@ class TaskManagerNode(Node):
         # onto wrong base coords (observed: y-shift of 50-100mm). Mirrors
         # pick_all.py's --inter-pick-delay (default 0.5s).
         self.declare_parameter("inter_pick_delay_sec", 0.5)
+
+        # Post-run verification. 사이클 마무리에서 홈→detect→remaining 계산→
+        # 부족분 픽을 반복. 라운드별 보정 픽 성공 시 다음 라운드 detect에서
+        # remaining=0 되어 자동 break.
+        self.declare_parameter("verification_enabled", True)
+        self.declare_parameter("max_verification_rounds", 5)
 
         self.declare_parameter("autostart", True)
 
@@ -143,6 +176,22 @@ class TaskManagerNode(Node):
                 ),
             )
             self.get_logger().info(f"FileOrderProvider reading {file_path}")
+        elif order_source == "firestore":
+            collection = str(self.get_parameter("firestore_collection").value)
+            document = str(self.get_parameter("firestore_document").value)
+            self._order_provider = FirestoreOrderProvider(
+                collection=collection,
+                document=document,
+                service_account_path=str(
+                    self.get_parameter("firestore_service_account_path").value
+                ),
+                require_success=bool(
+                    self.get_parameter("firestore_require_success").value
+                ),
+            )
+            self.get_logger().info(
+                f"FirestoreOrderProvider reading {collection}/{document}"
+            )
         else:
             raise ValueError(f"unknown order_source={order_source!r}")
 
@@ -166,6 +215,25 @@ class TaskManagerNode(Node):
         self._service_timeout_sec = float(self.get_parameter("service_timeout_sec").value)
         self._action_timeout_sec = float(self.get_parameter("action_timeout_sec").value)
         self._inter_pick_delay_sec = float(self.get_parameter("inter_pick_delay_sec").value)
+        self._verification_enabled = bool(self.get_parameter("verification_enabled").value)
+        self._max_verification_rounds = int(self.get_parameter("max_verification_rounds").value)
+        self._cluster_enabled = bool(self.get_parameter("cluster_enabled").value)
+        self._cluster_dist_threshold_mm = float(
+            self.get_parameter("cluster_dist_threshold_mm").value
+        )
+        self._cluster_candidate_offset_mm = float(
+            self.get_parameter("cluster_candidate_offset_mm").value
+        )
+        self._cluster_push_scale = float(self.get_parameter("cluster_push_scale").value)
+        self._cluster_push_z_offset_mm = float(
+            self.get_parameter("cluster_push_z_offset_mm").value
+        )
+        self._max_cluster_pushes_per_class = int(
+            self.get_parameter("max_cluster_pushes_per_class").value
+        )
+        # 사이클 동안 클래스별 cluster push 횟수 추적. 같은 클래스에서 push가
+        # 반복되어 무한 루프에 빠지는 것을 막는 용도.
+        self._cluster_push_counts: Dict[str, int] = {}
         explicit_offsets_path = (
             str(self.get_parameter("pick_offsets_path").value).strip() or None
         )
@@ -288,6 +356,66 @@ class TaskManagerNode(Node):
             return None
         return resp.objects
 
+    # ----- verification helpers ------------------------------------------
+
+    def _count_detected_objects(self, objects_msg) -> Dict[str, int]:
+        # detect_once 결과를 클래스별로 카운트. target_selector와 동일한 게이트
+        # (conf, transform_valid, depth, workspace)를 적용해 verification 수치가
+        # 실제 픽 가능 후보와 일치하도록 한다.
+        counts = {cls: 0 for cls in self._priority}
+        for obj in getattr(objects_msg, "objects", []):
+            cls = str(getattr(obj, "class_name", ""))
+            if cls not in counts:
+                continue
+            if float(getattr(obj, "confidence", 0.0)) < self._conf_gate:
+                continue
+            if not bool(getattr(obj, "transform_valid", True)):
+                continue
+            base_xyz = getattr(obj, "base_xyz", None)
+            if base_xyz is None:
+                continue
+            if float(base_xyz.z) <= self._min_depth_mm:
+                continue
+            if not (
+                self._workspace.xmin_mm <= float(base_xyz.x) <= self._workspace.xmax_mm
+                and self._workspace.ymin_mm <= float(base_xyz.y) <= self._workspace.ymax_mm
+                and self._workspace.zmin_mm <= float(base_xyz.z) <= self._workspace.zmax_mm
+            ):
+                continue
+            counts[cls] += 1
+        return counts
+
+    def _detect_counts_from_home(self, label: str) -> Optional[Dict[str, int]]:
+        # 홈 자세로 이동 후 settle delay를 두고 detect_once 호출.
+        # 검증 라운드 시작 시점마다 호출되어 일관된 관측 조건을 보장.
+        if not self._call_home():
+            return None
+        if self._inter_pick_delay_sec > 0.0:
+            time.sleep(self._inter_pick_delay_sec)
+        objects_msg = self._detect_once()
+        if objects_msg is None:
+            return None
+        counts = self._count_detected_objects(objects_msg)
+        self.get_logger().info(f"{label} detected counts: {counts}")
+        return counts
+
+    def _remaining_from_verification(
+        self,
+        ordered_counts: Dict[str, int],
+        initial_counts: Dict[str, int],
+        final_counts: Dict[str, int],
+    ) -> Dict[str, int]:
+        # remaining = ordered - (initial - final). initial-final이 "이번 사이클에
+        # 옮긴 추정 수량". ordered보다 더 옮긴 건 0으로 clamp (over-pick 방지).
+        remaining: Dict[str, int] = {}
+        for cls in self._priority:
+            ordered = max(0, int(ordered_counts.get(cls, 0)))
+            initial = max(0, int(initial_counts.get(cls, 0)))
+            final = max(0, int(final_counts.get(cls, 0)))
+            moved_estimated = initial - final
+            remaining[cls] = min(ordered, max(0, ordered - moved_estimated))
+        return remaining
+
     def _await_future(self, future, timeout_sec: float) -> bool:
         # done-callback 대신 polling을 쓰는 이유:
         # worker thread에서 spin_until_future_complete를 호출하면 executor와
@@ -348,25 +476,63 @@ class TaskManagerNode(Node):
             return None
         return result_future.result().result
 
-    # ----- main loop -----------------------------------------------------
+    def _send_cluster_push_goal(self, plan) -> Optional[object]:
+        # 한국어: cluster_policy가 만든 ClusterPlan을 PickAndPlace 액션 goal로
+        # 변환해 송출. target_class=CLUSTER_PUSH_TARGET_CLASS sentinel,
+        # grasp_xyz=진입점, return_xyz=푸시 종점, grasp_yaw=진입→푸시 방향
+        # (closed gripper의 회전 방향). pre_grasp_width_mm=0으로 두어 액션
+        # 서버가 pre-position 단계를 건너뛰게 하고, 대신 push 첫 단계에서
+        # gripper.close()를 직접 호출한다.
+        if not self._pick_client.wait_for_server(timeout_sec=self._service_timeout_sec):
+            self.get_logger().error("pick_and_place action server not available (cluster push)")
+            return None
 
-    def _run(self) -> None:
-        self._set_state(TaskState.INIT)
-        try:
-            order: OrderBook = self._order_provider.fetch()
-        except Exception as exc:  # noqa: BLE001
-            self.get_logger().error(f"order fetch failed: {exc}")
-            self._set_state(TaskState.ABORTED, "order_fetch_failed")
-            self._publish_result(False, "order_fetch_failed")
-            return
+        ex, ey, ez = plan.entry_xyz_mm
+        pex, pey, pez = plan.push_end_xyz_mm
+        # push yaw: entry→push_end 방향. 닫힌 그리퍼가 회전 정렬되어 있으면
+        # 이웃 너트와의 충돌 가능성을 좀 더 줄일 수 있다. atan2(dy, dx).
+        import math as _math
+        push_yaw = _math.atan2(pey - ey, pex - ex)
 
-        if not self._call_home():
-            self._set_state(TaskState.ABORTED, "home_failed")
-            self._publish_result(False, "home_failed")
-            return
+        goal = PickAndPlace.Goal()
+        goal.target_class = CLUSTER_PUSH_TARGET_CLASS
+        goal.grasp_xyz.x = float(ex)
+        goal.grasp_xyz.y = float(ey)
+        goal.grasp_xyz.z = float(ez)
+        goal.grasp_yaw = float(push_yaw)
+        goal.pre_grasp_width_mm = 0.0
+        goal.return_xyz.x = float(pex)
+        goal.return_xyz.y = float(pey)
+        goal.return_xyz.z = float(pez)
+        # return_zyz_deg는 cluster push에서 사용되지 않지만 메시지 필드는
+        # 채워줘야 한다. 현재 yaml의 return_zyz_deg를 그대로 전달.
+        goal.return_zyz_deg = [
+            float(self._return_zyz_deg[0]),
+            float(self._return_zyz_deg[1]),
+            float(self._return_zyz_deg[2]),
+        ]
 
+        send_future = self._pick_client.send_goal_async(goal)
+        if not self._await_future(send_future, self._service_timeout_sec):
+            return None
+        goal_handle = send_future.result()
+        if not goal_handle.accepted:
+            self.get_logger().error("cluster push goal rejected")
+            return None
+        result_future = goal_handle.get_result_async()
+        if not self._await_future(result_future, self._action_timeout_sec):
+            self.get_logger().error("cluster push action timed out")
+            return None
+        return result_future.result().result
+
+    # ----- order book processing -----------------------------------------
+
+    def _process_order_book(self, order: OrderBook, phase: str) -> bool:
+        # 한 OrderBook을 끝까지 처리. primary와 verify 라운드 모두 이 메서드를
+        # 공유한다. phase 문자열은 로그/state info용 (예: "primary", "verify1").
+        # ABORT/safety_stop이면 False, 정상 완주(또는 주문 소진)면 True.
         while order.has_remaining() and not self._stop_event.is_set():
-            self._set_state(TaskState.DETECT)
+            self._set_state(TaskState.DETECT, phase)
             target_class = order.next_class(self._priority)
             if target_class is None:
                 break
@@ -397,6 +563,73 @@ class TaskManagerNode(Node):
                     order.mark_skipped(target_class)
                 continue
 
+            # 한국어: cluster check — candidate가 군집 상태면 closed-gripper
+            # push로 분산시킨 뒤 continue하여 재관측. cluster_enabled=False
+            # 면 건너뛰고 일반 pick으로 진행. 같은 클래스에서 push 횟수
+            # 상한 초과 시 일반 pick으로 fallback (push 후에도 군집이 유지
+            # 되는 케이스 무한루프 방지).
+            if (
+                self._cluster_enabled
+                and self._cluster_push_counts.get(target_class, 0)
+                < self._max_cluster_pushes_per_class
+            ):
+                # 한국어: push z = grasp z + cluster_push_z_offset_mm.
+                # grasp z = base_z + per_class_z_offset (pick_offsets.yaml).
+                # 두 보정을 합쳐 cluster_policy에 전달하면 plan.entry/push_end
+                # 의 z가 곧바로 절대 push 높이가 된다.
+                push_z_total_offset = (
+                    self._per_class_z_offset_mm.get(target_class, 0.0)
+                    + self._cluster_push_z_offset_mm
+                )
+                cluster_plan = choose_cluster_plan(
+                    objects_msg.objects,
+                    candidate,
+                    self._workspace,
+                    cluster_dist_threshold_mm=self._cluster_dist_threshold_mm,
+                    candidate_offset_mm=self._cluster_candidate_offset_mm,
+                    push_scale=self._cluster_push_scale,
+                    push_z_offset_mm=push_z_total_offset,
+                    conf_gate=self._conf_gate,
+                    min_depth_mm=self._min_depth_mm,
+                )
+                if cluster_plan is not None:
+                    self._cluster_push_counts[target_class] = (
+                        self._cluster_push_counts.get(target_class, 0) + 1
+                    )
+                    self._set_state(
+                        TaskState.CLUSTER_PUSH,
+                        f"{target_class} dist={cluster_plan.neighbor_distance_mm:.1f}mm "
+                        f"#{self._cluster_push_counts[target_class]}",
+                    )
+                    self.get_logger().info(
+                        f"cluster push for {target_class}: "
+                        f"target=({candidate.base_xyz.x:.1f},{candidate.base_xyz.y:.1f}) "
+                        f"neighbor_dist={cluster_plan.neighbor_distance_mm:.1f}mm "
+                        f"entry={cluster_plan.entry_xyz_mm} "
+                        f"push_end={cluster_plan.push_end_xyz_mm}"
+                    )
+                    push_result = self._send_cluster_push_goal(cluster_plan)
+                    if push_result is None:
+                        # push 자체가 실패(서버 미가용/타임아웃)이면 ABORT로
+                        # 처리. workspace 위반 등은 cluster_policy에서 사전
+                        # 차단되므로 여기 도달하면 보통 인프라 문제.
+                        self._set_state(TaskState.ABORTED, "cluster_push_failure")
+                        self._publish_result(False, "cluster_push_failure")
+                        return False
+                    if not push_result.success:
+                        # push가 motion fail 등으로 실패한 경우, 일반 pick으로
+                        # fallback. cluster 카운트는 이미 증가했으므로 다음
+                        # 루프에서 같은 target에 push가 반복되지는 않는다.
+                        self.get_logger().warn(
+                            f"cluster push failed code={push_result.failure_code} "
+                            f"({push_result.message}) — fall through to pick"
+                        )
+                    else:
+                        # push 성공 시 settle 후 재관측 사이클로.
+                        if self._inter_pick_delay_sec > 0.0:
+                            time.sleep(self._inter_pick_delay_sec)
+                        continue
+
             self._set_state(TaskState.PICK_AND_PLACE, target_class)
             self.get_logger().info(
                 f"picking {target_class} at base=({candidate.base_xyz.x:.1f},"
@@ -413,7 +646,7 @@ class TaskManagerNode(Node):
             if result is None:
                 self._set_state(TaskState.ABORTED, "action_failure")
                 self._publish_result(False, "action_failure")
-                return
+                return False
 
             if result.success:
                 order.consume_one(target_class)
@@ -442,16 +675,101 @@ class TaskManagerNode(Node):
             elif decision is FailureAction.ABORT:
                 self._set_state(TaskState.ABORTED, f"failure_code={result.failure_code}")
                 self._publish_result(False, f"failure_code={result.failure_code}")
-                return
+                return False
             # RETRY_PICK / RETRY_DETECT: just loop and try again
 
         if self._stop_event.is_set():
             self._set_state(TaskState.SAFETY_STOP)
             self._publish_result(False, "safety_stop")
+            return False
+        return True
+
+    # ----- main loop -----------------------------------------------------
+
+    def _run(self) -> None:
+        self._set_state(TaskState.INIT)
+        # 사이클 시작 시 cluster push 카운터 리셋 — 이전 사이클 상태가
+        # 누적되어 새 주문 처리에서 push가 차단되는 것을 방지.
+        self._cluster_push_counts = {}
+        try:
+            order: OrderBook = self._order_provider.fetch()
+        except Exception as exc:  # noqa: BLE001
+            self.get_logger().error(f"order fetch failed: {exc}")
+            self._set_state(TaskState.ABORTED, "order_fetch_failed")
+            self._publish_result(False, "order_fetch_failed")
             return
 
+        # 원래 주문 수량을 보존해 verification 라운드의 remaining 계산에 사용.
+        ordered_counts = dict(order.counts)
+
+        if not self._call_home():
+            self._set_state(TaskState.ABORTED, "home_failed")
+            self._publish_result(False, "home_failed")
+            return
+        if self._inter_pick_delay_sec > 0.0:
+            time.sleep(self._inter_pick_delay_sec)
+
+        # 사이클 시작 시점의 검출 카운트. verification이 켜져 있으면 사용.
+        initial_counts: Optional[Dict[str, int]] = None
+        if self._verification_enabled:
+            objects_msg = self._detect_once()
+            if objects_msg is None:
+                self._set_state(TaskState.ABORTED, "initial_verify_detect_failed")
+                self._publish_result(False, "initial_verify_detect_failed")
+                return
+            initial_counts = self._count_detected_objects(objects_msg)
+            self.get_logger().info(f"initial detected counts: {initial_counts}")
+
+        # Primary round — 주문 그대로 처리.
+        if not self._process_order_book(order, "primary"):
+            return
+
+        # Verification rounds — 홈→detect→remaining 계산→부족분 픽을 반복.
+        # 각 라운드 진입 시 _detect_counts_from_home이 홈 이동 + detect_once 수행.
+        # remaining=0 즉시 break하여 불필요한 라운드 회피.
+        final_counts: Optional[Dict[str, int]] = None
+        correction_order: Optional[OrderBook] = None
+        if self._verification_enabled and initial_counts is not None:
+            for round_index in range(max(0, self._max_verification_rounds)):
+                self._set_state(TaskState.VERIFY, f"round={round_index + 1}")
+                final_counts = self._detect_counts_from_home(
+                    f"final round {round_index + 1}"
+                )
+                if final_counts is None:
+                    self._set_state(TaskState.ABORTED, "final_verify_detect_failed")
+                    self._publish_result(False, "final_verify_detect_failed")
+                    return
+
+                remaining_counts = self._remaining_from_verification(
+                    ordered_counts, initial_counts, final_counts
+                )
+                self.get_logger().info(
+                    "verification remaining counts: "
+                    f"ordered={ordered_counts} initial={initial_counts} "
+                    f"final={final_counts} remaining={remaining_counts}"
+                )
+                correction_order = OrderBook(counts=remaining_counts)
+                if not correction_order.has_remaining():
+                    break
+                if not self._process_order_book(
+                    correction_order, f"verify{round_index + 1}"
+                ):
+                    return
+
         self._set_state(TaskState.DONE)
-        self._publish_result(order.all_done(), f"counts={order.counts} skipped={list(order.skipped)}")
+        if correction_order is not None and correction_order.has_remaining():
+            # max_verification_rounds 다 돌아도 보정 실패한 부족분 보고.
+            self._publish_result(
+                False,
+                f"counts={order.counts} correction={correction_order.counts} "
+                f"skipped={list(correction_order.skipped)}",
+            )
+        else:
+            self._publish_result(
+                order.all_done(),
+                f"counts={order.counts} final_counts={final_counts} "
+                f"skipped={list(order.skipped)}",
+            )
 
 
 def main(args=None) -> None:

@@ -24,12 +24,15 @@
     acceleration_slow: 30.0
     grip_settle_timeout_sec: 5.0
 
-    grasp_local_offset_xy_mm: [1.0, 0.0]
+    grasp_local_offset_xy_mm: [0.5, -3.0]
 
     action_name: "/robot/pick_and_place"
     home_service_name: "/robot/home"
     stop_service_name: "/robot/stop"
     pose_service_name: "/robot/get_current_pose"
+    # Doosan get_current_posx가 가끔 ~2s 걸려 perception 측 timeout과 경합한다.
+    # robot_control은 그보다 짧으면 안 되므로 4s로 둔다.
+    pose_passthrough_timeout_sec: 4.0
     place_ready_topic: "/conveyor/place_ready"
     place_y_margin_mm: 3.0
     place_ready_publish_period_sec: 0.1

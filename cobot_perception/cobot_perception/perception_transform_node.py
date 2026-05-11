@@ -1,26 +1,25 @@
 # 한국어 요약:
-#   2D OBB detection을 robot base 프레임 grasp 후보로 변환하는 ROS2 노드.
-#   detect_once 서비스 호출 시 detection / 깊이 / camera_info / TCP pose를 모아
-#   pinhole 모델로 카메라 좌표를 복원하고 hand-eye 체인으로 base 프레임에 투영한다.
-#   tcp_source는 fixed(파라미터) 또는 service(GetCurrentPose) 두 모드를 지원한다.
-#   gripper2camera_npy 캘리브레이션 파일은 시작 시 필수로 검증된다.
-"""ROS2 node: bridges 2D OBB detections to base-frame grasp candidates.
+#   detect_once 트리거식 perception 노드.
+#   서비스 호출 시점부터 새로 들어오는 color frame N장을 모아 YOLO-OBB 추론을
+#   실행하고, 같은 시점의 depth/intrinsics/TCP를 묶어 base 프레임으로 변환한다.
+#   stream/cache 방식의 frame-TCP 미스매치를 원천 차단한다.
+"""ROS2 node: trigger-based detect_once that owns YOLO + transform end-to-end.
 
 Pipeline per /perception/detect_once call:
-  1. read the latest /detection/objects message
-  2. read the latest aligned-depth frame and intrinsics
-  3. for each detection, look up median depth inside the OBB
-  4. lift to camera frame using the pinhole model (mm)
-  5. transform to robot base frame using base2gripper(TCP) @ gripper2camera(npy)
-  6. compute grasp_yaw from OBB theta and (width, height)
-  7. apply DEPTH_OFFSET / MIN_DEPTH_BASE clamps to z and emit DetectedObject
+  1. record trigger time
+  2. wait for `num_capture_frames` color frames whose header.stamp is newer than trigger
+  3. run YOLO-OBB on each captured frame, fuse with the aggregator
+  4. read latest aligned-depth + camera_info + TCP (all sampled inside the same
+     stationary window as the color frames)
+  5. for each fused detection, look up median depth inside the OBB
+  6. lift to camera frame using the pinhole model (mm)
+  7. transform to robot base frame using base2gripper(TCP) @ gripper2camera(npy)
+  8. compute grasp_yaw from OBB theta and (width, height)
+  9. apply DEPTH_OFFSET / MIN_DEPTH_BASE clamps to z and emit DetectedObject
 
 TCP pose source is selectable:
   - "fixed"  : use fixed_tcp_xyz_mm + fixed_tcp_zyz_deg (Phase A standalone)
-  - "service": call cobot_robot_control's GetCurrentPose service
-              (param `tcp_service_name`, default `/robot/get_current_pose`)
-              to fetch the live TCP pose every detect_once. This is the
-              default once cobot_robot_control is up.
+  - "service": call cobot_robot_control's GetCurrentPose service (default)
 """
 
 from __future__ import annotations
@@ -38,8 +37,12 @@ from rclpy.node import Node
 from rclpy.qos import HistoryPolicy, QoSProfile, ReliabilityPolicy
 from sensor_msgs.msg import CameraInfo, Image
 
-from cobot_msgs.msg import DetectedObjectArray
+from cobot_msgs.msg import DetectedObject, DetectedObjectArray
 from cobot_msgs.srv import DetectOnce, GetCurrentPose
+
+from cobot_object_detection.detection_postprocess import DetectionAggregator
+from cobot_object_detection.model_paths import resolve_model_path
+from cobot_object_detection.yolo_detector import YoloObbDetector
 
 from .depth_filter import median_inside_obb
 from .grasp_pose_generator import yaw_from_obb
@@ -49,6 +52,10 @@ from .handeye_transform import (
     tcp_to_base2gripper,
     transform_camera_to_base,
 )
+
+
+def _stamp_tuple(stamp) -> Tuple[int, int]:
+    return int(stamp.sec), int(stamp.nanosec)
 
 
 class PerceptionTransformNode(Node):
@@ -62,30 +69,47 @@ class PerceptionTransformNode(Node):
         # depth_offset_mm: 깊이 측정 편향(bias) 보정용 z 오프셋. 강의 노트 기준값.
         # min_depth_base_mm: 변환 후 base z를 클램프하여 그리퍼가 바닥(테이블) 아래로
         # 내려가는 것을 방지하는 안전 하한.
-        self.declare_parameter("depth_offset_mm", -5.0)      # lecture's z bias
-        self.declare_parameter("min_depth_base_mm", 2.0)     # clamp on base z
+        self.declare_parameter("depth_offset_mm", -5.0)
+        self.declare_parameter("min_depth_base_mm", 2.0)
 
         # TCP pose source
         self.declare_parameter("tcp_source", "fixed")        # fixed | service
         self.declare_parameter("fixed_tcp_xyz_mm", [400.0, 0.0, 400.0])
         self.declare_parameter("fixed_tcp_zyz_deg", [0.0, 180.0, 0.0])
         self.declare_parameter("tcp_service_name", "/robot/get_current_pose")
-        self.declare_parameter("tcp_service_timeout_sec", 2.0)
+        self.declare_parameter("tcp_service_timeout_sec", 5.0)
+
+        # YOLO inference (이전 object_detection_node 책임을 통합)
+        self.declare_parameter("model_path", "")
+        self.declare_parameter(
+            "class_names",
+            ["almond", "cashew", "pistachio", "walnut"],
+        )
+        self.declare_parameter("imgsz", 800)
+        self.declare_parameter("conf_threshold", 0.40)
+        self.declare_parameter("iou_threshold", 0.50)
+        self.declare_parameter("device", "")
+        self.declare_parameter("multi_frame_window_sec", 0.5)
+        self.declare_parameter("cluster_distance_threshold_px", 30.0)
+
+        # Trigger 캡처 정책: 트리거 시점 이후로 들어오는 color frame을
+        # num_capture_frames장 모을 때까지 capture_timeout_sec 한도 내에서 대기.
+        self.declare_parameter("num_capture_frames", 5)
+        self.declare_parameter("capture_timeout_sec", 2.0)
 
         # Topics / service names
-        self.declare_parameter("detection_topic", "/detection/objects")
+        self.declare_parameter("color_topic", "/camera/camera/color/image_raw")
         self.declare_parameter("depth_topic", "/camera/camera/aligned_depth_to_color/image_raw")
         self.declare_parameter("camera_info_topic", "/camera/camera/color/camera_info")
         self.declare_parameter("service_name", "/perception/detect_once")
 
         # Latest cached state
-        self._detection: Optional[DetectedObjectArray] = None
-        self._depth: Optional[np.ndarray] = None
+        self._latest_color: Optional[Image] = None
+        self._latest_depth: Optional[np.ndarray] = None
         self._intrinsics: Optional[dict] = None
 
         # Hand-eye matrix
         # 캘리브레이션 누락은 mis-config로 간주하여 startup에서 즉시 raise.
-        # 런타임 detect_once에서 실패하면 디버깅이 어려우므로 조기 실패가 안전하다.
         npy_path = str(self.get_parameter("gripper2camera_npy").value or "").strip()
         if not npy_path:
             raise RuntimeError(
@@ -97,19 +121,45 @@ class PerceptionTransformNode(Node):
         self._gripper2cam = load_gripper2camera(npy_path)
         self.get_logger().info(f"Loaded gripper2camera from {npy_path}")
 
+        # YOLO detector + aggregator (perception 내부 소유)
+        model_path = resolve_model_path(self.get_parameter("model_path").value)
+        device_param = self.get_parameter("device").value
+        self.get_logger().info(
+            f"Loading YOLO-OBB model: {model_path} "
+            f"(imgsz={self.get_parameter('imgsz').value}, "
+            f"conf={self.get_parameter('conf_threshold').value}, "
+            f"iou={self.get_parameter('iou_threshold').value})"
+        )
+        self._detector = YoloObbDetector(
+            model_path=model_path,
+            class_names=list(self.get_parameter("class_names").value),
+            imgsz=int(self.get_parameter("imgsz").value),
+            conf_threshold=float(self.get_parameter("conf_threshold").value),
+            iou_threshold=float(self.get_parameter("iou_threshold").value),
+            device=device_param if device_param else None,
+        )
+        self._aggregator_window_sec = float(
+            self.get_parameter("multi_frame_window_sec").value
+        )
+        self._aggregator_cluster_px = float(
+            self.get_parameter("cluster_distance_threshold_px").value
+        )
+
         # Subscribers
+        # RealSense color/depth publisher가 RELIABLE이며 cyclonedds 환경에서 BE
+        # 단독 subscriber는 메시지가 전달되지 않는 패턴이 있어 RELIABLE로 매칭.
         sensor_qos = QoSProfile(
-            reliability=ReliabilityPolicy.BEST_EFFORT,
+            reliability=ReliabilityPolicy.RELIABLE,
             history=HistoryPolicy.KEEP_LAST,
-            depth=2,
+            depth=1,
         )
         cb_group = ReentrantCallbackGroup()
         self._bridge = CvBridge()
-        self._detection_sub = self.create_subscription(
-            DetectedObjectArray,
-            self.get_parameter("detection_topic").value,
-            self._on_detection,
-            10,
+        self._color_sub = self.create_subscription(
+            Image,
+            self.get_parameter("color_topic").value,
+            self._on_color,
+            sensor_qos,
             callback_group=cb_group,
         )
         self._depth_sub = self.create_subscription(
@@ -142,13 +192,14 @@ class PerceptionTransformNode(Node):
             callback_group=cb_group,
         )
         self.get_logger().info(
-            f"Service {self.get_parameter('service_name').value} ready"
+            f"Service {self.get_parameter('service_name').value} ready (trigger-based)"
         )
 
     # --- subscriber callbacks ---------------------------------------------
 
-    def _on_detection(self, msg: DetectedObjectArray) -> None:
-        self._detection = msg
+    def _on_color(self, msg: Image) -> None:
+        # 원본 메시지를 저장 (header.stamp으로 freshness 판정).
+        self._latest_color = msg
 
     def _on_depth(self, msg: Image) -> None:
         try:
@@ -156,11 +207,10 @@ class PerceptionTransformNode(Node):
         except Exception as exc:  # cv_bridge errors
             self.get_logger().warn(f"depth cv_bridge failed: {exc}")
             return
-        self._depth = frame
+        self._latest_depth = frame
 
     def _on_camera_info(self, msg: CameraInfo) -> None:
-        # Avoid recomputing on every callback
-        # K 매트릭스가 동일하면 dict 재구성을 생략 (camera_info는 매 프레임 재발행됨).
+        # K가 동일하면 dict 재구성 생략 (camera_info는 매 프레임 재발행됨).
         if (
             self._intrinsics is not None
             and self._intrinsics["k"] == tuple(msg.k)
@@ -195,7 +245,7 @@ class PerceptionTransformNode(Node):
         future = self._tcp_client.call_async(GetCurrentPose.Request())
         deadline = time.time() + timeout
         # 서비스 핸들러(detect_once) 내부에서 호출되므로 add_done_callback 대신
-        # short-poll으로 결과를 기다린다. 5ms 간격은 응답 지연과 CPU 점유의 절충.
+        # short-poll으로 결과를 기다린다.
         while time.time() < deadline and not future.done():
             time.sleep(0.005)
         if not future.done():
@@ -207,22 +257,87 @@ class PerceptionTransformNode(Node):
         zyz = [float(resp.zyz_deg[0]), float(resp.zyz_deg[1]), float(resp.zyz_deg[2])]
         return xyz, zyz
 
+    # --- trigger capture --------------------------------------------------
+
+    def _capture_and_infer(self) -> Tuple[Optional[list], Optional[Image]]:
+        """트리거 시점 이후의 color frame을 모아 YOLO 추론하고 fuse.
+
+        Returns: (fused_detections, last_color_msg) — capture 실패시 (None, None).
+        """
+        n_frames = int(self.get_parameter("num_capture_frames").value)
+        timeout = float(self.get_parameter("capture_timeout_sec").value)
+
+        # 트리거 시점 이전의 stale frame을 배제하기 위해 현재 시각을 기록.
+        # ROS clock(노드)이 아닌 system clock과 비교해야 하지만, header.stamp는
+        # 카메라 publish 시점의 ROS 시계를 따르므로 self.get_clock().now()와
+        # 직접 비교 가능.
+        trigger_now = self.get_clock().now()
+        trigger_stamp = trigger_now.to_msg()
+        trigger_tuple = (int(trigger_stamp.sec), int(trigger_stamp.nanosec))
+
+        aggregator = DetectionAggregator(
+            window_sec=self._aggregator_window_sec,
+            cluster_distance_px=self._aggregator_cluster_px,
+        )
+
+        last_processed: Optional[Tuple[int, int]] = None
+        last_msg: Optional[Image] = None
+        collected = 0
+        deadline = time.monotonic() + timeout
+        while collected < n_frames and time.monotonic() < deadline:
+            msg = self._latest_color
+            if msg is None:
+                time.sleep(0.005)
+                continue
+            stamp = _stamp_tuple(msg.header.stamp)
+            # 트리거 시점보다 오래된 프레임은 motion 잔재일 수 있어 배제.
+            if stamp <= trigger_tuple:
+                time.sleep(0.005)
+                continue
+            # 같은 메시지를 다시 추론하지 않도록 중복 체크.
+            if last_processed is not None and stamp == last_processed:
+                time.sleep(0.005)
+                continue
+            last_processed = stamp
+            last_msg = msg
+            try:
+                frame = self._bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+            except Exception as exc:  # cv_bridge errors
+                self.get_logger().warn(f"color cv_bridge failed: {exc}")
+                continue
+            detections = self._detector.infer(frame)
+            aggregator.add(detections, time.time())
+            collected += 1
+
+        if collected == 0:
+            return None, None
+        return aggregator.fuse(), last_msg
+
     # --- service handler --------------------------------------------------
 
-    def _handle_detect_once(self, request, response):
-        if self._detection is None:
-            response.success = False
-            response.message = "no detection received yet"
-            return response
-        if self._depth is None:
-            response.success = False
-            response.message = "no depth frame received yet"
-            return response
+    def _handle_detect_once(self, _request, response):
         if self._intrinsics is None:
             response.success = False
             response.message = "no camera_info received yet"
             return response
 
+        # 트리거: fresh color frame을 수집하면서 YOLO 추론 동시 진행.
+        fused_objects, last_color_msg = self._capture_and_infer()
+        if fused_objects is None or last_color_msg is None:
+            response.success = False
+            response.message = "no fresh color frames within capture_timeout_sec"
+            return response
+
+        # depth는 수집 윈도우 마지막 시점의 latest를 사용. color 캡처와 동일한
+        # 정지 구간에서 publish된 frame이므로 같은 장면을 반영.
+        depth = self._latest_depth
+        if depth is None:
+            response.success = False
+            response.message = "no depth frame received yet"
+            return response
+
+        # TCP는 색 캡처 직후에 1회만 조회. 픽 사이클 home에서 정지 상태이므로
+        # capture window와 같은 robot pose를 반영.
         try:
             tcp_xyz, tcp_zyz = self._current_tcp()
         except (NotImplementedError, RuntimeError) as exc:
@@ -249,13 +364,23 @@ class PerceptionTransformNode(Node):
         depth_offset = float(self.get_parameter("depth_offset_mm").value)
         min_depth_base = float(self.get_parameter("min_depth_base_mm").value)
 
-        depth = self._depth
         out = DetectedObjectArray()
-        out.header = self._detection.header
+        out.header = last_color_msg.header
+        # frame_id는 카메라 광학좌표계 기준.
+        if not out.header.frame_id:
+            out.header.frame_id = "camera_color_optical_frame"
 
         kept = 0
-        for src in self._detection.objects:
-            obj = src
+        for d in fused_objects:
+            obj = DetectedObject()
+            obj.class_name = d.class_name
+            obj.confidence = float(d.confidence)
+            obj.cx = float(d.cx)
+            obj.cy = float(d.cy)
+            obj.width = float(d.width)
+            obj.height = float(d.height)
+            obj.theta = float(d.theta)
+
             z_mm = median_inside_obb(
                 depth,
                 obj.cx,
@@ -287,9 +412,6 @@ class PerceptionTransformNode(Node):
 
             obj.grasp_yaw = float(yaw_from_obb(obj.theta, obj.width, obj.height))
 
-            # Physical OBB dimensions via pinhole at the measured depth.
-            # Average fx and fy (typically ~equal on RealSense) for an
-            # isotropic mm-per-pixel scale.
             mm_per_px = z_mm / ((fx + fy) / 2.0)
             short_px = min(obj.width, obj.height)
             long_px = max(obj.width, obj.height)
@@ -302,7 +424,7 @@ class PerceptionTransformNode(Node):
 
         response.objects = out
         response.success = True
-        response.message = f"transformed {kept}/{len(self._detection.objects)} detections"
+        response.message = f"transformed {kept}/{len(fused_objects)} detections"
         return response
 
 
@@ -324,7 +446,3 @@ def main(args=None) -> None:
             node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
-
-
-if __name__ == "__main__":
-    main()
