@@ -22,6 +22,12 @@
 - `docs/02_ros_node_architecture.md` — **이 파일**.
 - `docs/03_run_manual.md` — 운영자용 실행 절차.
 - `docs/04_validation_checklist.md` — 사전 점검 체크리스트.
+- `docs/09_supabase_migration.md` — Supabase 백엔드 경로의 차이점.
+  이 파일의 노드 표/토픽 흐름은 Firestore 경로를 기준으로 한다.
+  `supabase_status_bridge`는 `firebase_status_bridge`의 기능적 트윈으로,
+  같은 토픽들을 구독해 같은 의미의 `robot_state`를 **Postgres** 측에
+  쓴다. launch 인자 `enable_supabase_status_bridge` 및 `order_source=supabase`
+  로 활성화.
 - `docs/cleanup_deletion_proposal.md` 및
   `_archive_cleanup/<YYYYMMDD>/cleanup_manifest.md` — 메타/정리
   기록. `_archive_cleanup/` 디렉토리는 **실제 코드가 아니며** 이

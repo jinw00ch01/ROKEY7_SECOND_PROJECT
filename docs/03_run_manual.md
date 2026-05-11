@@ -23,9 +23,12 @@
 - `docs/01_system_architecture.md` — 시스템을 처음 접한다면 먼저 읽을 것.
 - `docs/02_ros_node_architecture.md` — 노드별 인터페이스 레퍼런스, 파라미터
   목록, 그리고 전체 ROS 디버깅 명령 표면.
-- `docs/03_run_manual.md` — **이 파일**.
+- `docs/03_run_manual.md` — **이 파일** (Firestore 경로 기준).
 - `docs/04_validation_checklist.md` — 아래 단계와 매칭되는 테스트/수용
   체크리스트.
+- `docs/09_supabase_migration.md` — **Supabase 경로 운영자**라면 이 파일과
+  병행해서 읽을 것. `.env` 설정, `bringup_supabase`, SQL 적용, 디버깅
+  함정 등 Supabase 전용 절차가 모두 거기 있다.
 - `docs/cleanup_deletion_proposal.md` — 아카이브된/플래그된 파일에 대한 삭제
   계획 (읽기 전용 메타 문서).
 
