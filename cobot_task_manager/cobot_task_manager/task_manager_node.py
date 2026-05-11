@@ -100,11 +100,11 @@ class TaskManagerNode(Node):
         self.declare_parameter("pre_grasp_min_mm", 15.0)
         self.declare_parameter("pre_grasp_max_mm", 80.0)
 
-        # Per-class fine-tune offset added to grasp_xyz.z (mm). Loaded from
-        # the shared cobot_config/config/pick_offsets.yaml so the /task/start
-        # path and any direct caller (scripts/pick_*.py) share one source of
-        # truth. Empty path -> resolver searches env var, ament-share, then
-        # source-tree fallback.
+        # Per-class fine-tune offsets added to grasp_xyz (mm) on each axis.
+        # Loaded from the shared cobot_config/config/pick_offsets.yaml so the
+        # /task/start path and any direct caller (scripts/pick_*.py) share
+        # one source of truth. Empty path -> resolver searches env var,
+        # ament-share, then source-tree fallback.
         self.declare_parameter("pick_offsets_path", "")
 
         self.declare_parameter("perception_service_name", "/perception/detect_once")
@@ -237,14 +237,19 @@ class TaskManagerNode(Node):
         explicit_offsets_path = (
             str(self.get_parameter("pick_offsets_path").value).strip() or None
         )
-        self._per_class_z_offset_mm = load_pick_offsets(explicit_offsets_path)
-        self.get_logger().info(
-            "Per-class z offsets (mm): "
-            + ", ".join(
-                f"{k}={v:+.2f}"
-                for k, v in sorted(self._per_class_z_offset_mm.items())
+        offsets_xyz = load_pick_offsets(explicit_offsets_path)
+        self._per_class_x_offset_mm = offsets_xyz["x"]
+        self._per_class_y_offset_mm = offsets_xyz["y"]
+        self._per_class_z_offset_mm = offsets_xyz["z"]
+        for axis, table in (
+            ("x", self._per_class_x_offset_mm),
+            ("y", self._per_class_y_offset_mm),
+            ("z", self._per_class_z_offset_mm),
+        ):
+            self.get_logger().info(
+                f"Per-class {axis} offsets (mm): "
+                + ", ".join(f"{k}={v:+.2f}" for k, v in sorted(table.items()))
             )
-        )
 
         self._retry = RetryPolicy(
             max_detect_misses=int(self.get_parameter("max_detect_misses").value),
@@ -444,17 +449,24 @@ class TaskManagerNode(Node):
             pre_grasp_width_mm = candidate.short_axis_mm + self._pre_grasp_margin_mm
             pre_grasp_width_mm = max(self._pre_grasp_min_mm, min(self._pre_grasp_max_mm, pre_grasp_width_mm))
 
+        x_offset_mm = self._per_class_x_offset_mm.get(target_class, 0.0)
+        y_offset_mm = self._per_class_y_offset_mm.get(target_class, 0.0)
         z_offset_mm = self._per_class_z_offset_mm.get(target_class, 0.0)
+        grasp_x = float(candidate.base_xyz.x) + x_offset_mm
+        grasp_y = float(candidate.base_xyz.y) + y_offset_mm
         grasp_z = float(candidate.base_xyz.z) + z_offset_mm
         self.get_logger().info(
-            f"pick goal: nut_type={target_class} base_z={candidate.base_xyz.z:.1f} "
-            f"z_offset={z_offset_mm:+.2f} -> grasp_z={grasp_z:.1f}"
+            f"pick goal: nut_type={target_class} "
+            f"base=({candidate.base_xyz.x:.1f},{candidate.base_xyz.y:.1f},"
+            f"{candidate.base_xyz.z:.1f}) "
+            f"offset=({x_offset_mm:+.2f},{y_offset_mm:+.2f},{z_offset_mm:+.2f}) "
+            f"-> grasp=({grasp_x:.1f},{grasp_y:.1f},{grasp_z:.1f})"
         )
 
         goal = PickAndPlace.Goal()
         goal.target_class = target_class
-        goal.grasp_xyz.x = float(candidate.base_xyz.x)
-        goal.grasp_xyz.y = float(candidate.base_xyz.y)
+        goal.grasp_xyz.x = grasp_x
+        goal.grasp_xyz.y = grasp_y
         goal.grasp_xyz.z = grasp_z
         goal.grasp_yaw = float(candidate.grasp_yaw)
         goal.pre_grasp_width_mm = float(pre_grasp_width_mm)

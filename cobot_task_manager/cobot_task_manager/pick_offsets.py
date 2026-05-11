@@ -1,12 +1,12 @@
 # 한국어 요약:
-#   클래스별 z offset을 YAML에서 읽어오는 single source of truth 로더이다.
+#   클래스별 x/y/z offset을 YAML에서 읽어오는 single source of truth 로더이다.
 #   /task/start 경로와 scripts/pick_*.py가 동일한 오프셋을 쓰도록 한다.
 #   resolver는 explicit -> env var -> ament-share -> 소스 트리 순으로 후보를
 #   훑고, 파일이 없거나 키가 깨졌을 때도 DEFAULT_OFFSETS_MM으로 fallback해
 #   로봇이 멈추지 않게 한다.
-"""Per-class Z-offset loader.
+"""Per-class XYZ-offset loader.
 
-Single source of truth for the offset added to grasp_xyz.z at pick time.
+Single source of truth for the offsets added to grasp_xyz at pick time.
 The canonical YAML lives at ``cobot_config/config/pick_offsets.yaml``.
 
 Resolution order:
@@ -15,9 +15,10 @@ Resolution order:
   3. Installed share dir (ament_index_python -> cobot_config)
   4. Source-tree fallback (sibling cobot_config/ next to this workspace)
 
-Always returns a dict with all four canonical classes; missing or invalid
-entries fall back to DEFAULT_OFFSETS_MM. Missing files log a warning and
-return defaults so the robot can still pick (at z = perception z).
+Returns a nested dict ``{"x": {cls: mm}, "y": {cls: mm}, "z": {cls: mm}}``
+with all four canonical classes per axis; missing or invalid entries fall
+back to 0.0 (per-axis defaults preserved). Missing files log a warning and
+return defaults so the robot can still pick (at the perception coords).
 """
 
 from __future__ import annotations
@@ -30,14 +31,24 @@ from typing import Dict, List, Optional
 logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
-DEFAULT_OFFSETS_MM: Dict[str, float] = {
-    "almond": 0.0,
-    "cashew": 0.0,
-    "pistachio": 0.0,
-    "walnut": -1.0,
+_CANONICAL_CLASSES = ("almond", "cashew", "pistachio", "walnut")
+
+DEFAULT_OFFSETS_MM: Dict[str, Dict[str, float]] = {
+    "x": {cls: 0.0 for cls in _CANONICAL_CLASSES},
+    "y": {cls: 0.0 for cls in _CANONICAL_CLASSES},
+    "z": {
+        "almond": 0.0,
+        "cashew": 0.0,
+        "pistachio": 0.0,
+        "walnut": -1.0,
+    },
 }
 ENV_OVERRIDE = "COBOT_PICK_OFFSETS_PATH"
-_YAML_KEY = "per_class_z_offset_mm"
+_YAML_KEYS = {
+    "x": "per_class_x_offset_mm",
+    "y": "per_class_y_offset_mm",
+    "z": "per_class_z_offset_mm",
+}
 
 
 def _candidate_paths(explicit_path: Optional[str]) -> List[Path]:
@@ -73,11 +84,48 @@ def _candidate_paths(explicit_path: Optional[str]) -> List[Path]:
     return out
 
 
-def load_pick_offsets(explicit_path: Optional[str] = None) -> Dict[str, float]:
-    """Return per-class z offsets in mm.
+def _merge_axis(
+    path: Path,
+    data: dict,
+    axis: str,
+    defaults: Dict[str, float],
+) -> Dict[str, float]:
+    # axis 한 축 분량의 YAML 블록을 defaults에 덮어쓴다. 키가 없거나 dict가
+    # 아니면 통째로 defaults 반환, 개별 값이 숫자 변환 실패면 그 키만 default.
+    yaml_key = _YAML_KEYS[axis]
+    source = data.get(yaml_key)
+    if not isinstance(source, dict):
+        logger.warning(
+            "%s: missing/invalid %r mapping; using defaults for axis=%s",
+            path,
+            yaml_key,
+            axis,
+        )
+        return dict(defaults)
 
-    Always returns the full 4-class dict; classes missing from the YAML
-    fall back to ``DEFAULT_OFFSETS_MM``.
+    merged = dict(defaults)
+    for cls, val in source.items():
+        try:
+            merged[str(cls)] = float(val)
+        except (TypeError, ValueError):
+            logger.warning(
+                "%s: %s[%r]=%r is not a number; using default",
+                path,
+                yaml_key,
+                cls,
+                val,
+            )
+    return merged
+
+
+def load_pick_offsets(
+    explicit_path: Optional[str] = None,
+) -> Dict[str, Dict[str, float]]:
+    """Return per-class XYZ offsets in mm.
+
+    Always returns ``{"x": {...}, "y": {...}, "z": {...}}`` with the full
+    4-class dict per axis; axes/classes missing from the YAML fall back to
+    ``DEFAULT_OFFSETS_MM``.
     """
     import yaml
 
@@ -91,30 +139,15 @@ def load_pick_offsets(explicit_path: Optional[str] = None) -> Dict[str, float]:
             logger.warning("%s: failed to parse (%s); trying next candidate", path, exc)
             continue
 
-        source = data.get(_YAML_KEY)
-        if not isinstance(source, dict):
-            logger.warning(
-                "%s: missing/invalid %r mapping; using defaults", path, _YAML_KEY
-            )
-            return dict(DEFAULT_OFFSETS_MM)
-
-        merged = dict(DEFAULT_OFFSETS_MM)
-        for cls, val in source.items():
-            try:
-                merged[str(cls)] = float(val)
-            except (TypeError, ValueError):
-                logger.warning(
-                    "%s: %s[%r]=%r is not a number; using default",
-                    path,
-                    _YAML_KEY,
-                    cls,
-                    val,
-                )
-        logger.info("Loaded pick offsets from %s: %s", path, merged)
-        return merged
+        result = {
+            axis: _merge_axis(path, data, axis, DEFAULT_OFFSETS_MM[axis])
+            for axis in ("x", "y", "z")
+        }
+        logger.info("Loaded pick offsets from %s: %s", path, result)
+        return result
 
     logger.warning(
         "pick_offsets.yaml not found on any candidate path; using defaults: %s",
         DEFAULT_OFFSETS_MM,
     )
-    return dict(DEFAULT_OFFSETS_MM)
+    return {axis: dict(table) for axis, table in DEFAULT_OFFSETS_MM.items()}
