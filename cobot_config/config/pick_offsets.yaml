@@ -18,10 +18,10 @@ per_class_y_offset_mm:
   almond: -1.0
   cashew: -0.5
   pistachio: -0.5
-  walnut: -0.5
+  walnut: -1
 
 per_class_z_offset_mm:
-  almond: -2.0
+  almond: -2.5
   cashew: -2.0
   pistachio: -2.0
   walnut: -2.0
