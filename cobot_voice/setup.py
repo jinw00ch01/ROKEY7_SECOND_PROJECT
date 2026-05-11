@@ -28,6 +28,7 @@ setup(
             'voice_web_demo = cobot_voice.voice_web_demo:main',
             'web_voice_bridge_server = cobot_voice.web_voice_bridge_server:main',
             'firebase_status_bridge = cobot_voice.firebase_status_bridge:main',
+            'supabase_status_bridge = cobot_voice.supabase_status_bridge:main',
         ],
     },
 )

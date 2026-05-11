@@ -321,3 +321,88 @@ class FirestoreOrderProvider:
         if request_id:
             self._last_request_id = request_id
         return OrderBook(counts=counts)
+
+
+class SupabaseOrderProvider:
+    """Read the latest browser-published order from Supabase.
+
+    Functional twin of FirestoreOrderProvider for the post-migration
+    web app (web_stt_supabase_v2). Reads the single `robot_session.current`
+    row via CobotDbManager (same lazy client + .env loading the rest of
+    the Supabase stack uses) and applies the same gates:
+
+      - require_success=true -> refuse rows where success != true
+      - dedupe by request_id  -> the second fetch() with the same id
+        raises until the browser publishes a new order
+
+    Combo schema is identical to FirestoreOrderProvider's:
+        combo = [{"nut": "cashew", "count": 3}, ...]
+    """
+
+    def __init__(
+        self,
+        env_path: str = "",
+        require_success: bool = True,
+        db_manager: Optional[Any] = None,
+    ) -> None:
+        self._require_success = bool(require_success)
+        self._last_request_id: Optional[str] = None
+        # 호출자가 미리 만든 CobotDbManager를 주입할 수 있게 — 같은 노드 안에서
+        # status bridge나 inventory writer와 client 공유 가능. None이면 lazy.
+        self._db: Any = db_manager
+        self._env_path: Optional[str] = env_path or None
+
+    def _ensure_db(self) -> Any:
+        if self._db is not None:
+            return self._db
+        # 지연 import: cobot_db / supabase-py가 없는 환경(예: 단위 테스트)에서도
+        # 모듈 import만으로 깨지지 않게 한다.
+        from cobot_db import CobotDbManager  # type: ignore
+
+        self._db = CobotDbManager(env_path=self._env_path)
+        return self._db
+
+    def fetch(self) -> OrderBook:
+        db = self._ensure_db()
+        data = db.read_robot_session()
+        if data is None:
+            raise RuntimeError(
+                "robot_session.current row missing — "
+                "apply cobot_db/sql/init.sql to seed it"
+            )
+
+        if self._require_success and not bool(data.get("success", False)):
+            raise RuntimeError(
+                f"order success=false (transcript: {data.get('transcript', '')!r})"
+            )
+
+        request_id = str(data.get("request_id") or "")
+        if request_id and request_id == self._last_request_id:
+            raise RuntimeError(
+                f"order request_id {request_id!r} already processed; "
+                "publish a new request_id to robot_session before re-fetching"
+            )
+
+        combo = data.get("combo")
+        if not isinstance(combo, list) or not combo:
+            raise RuntimeError("order has empty or missing 'combo'")
+
+        counts: Dict[str, int] = {}
+        for item in combo:
+            if not isinstance(item, dict):
+                continue
+            nut = item.get("nut")
+            try:
+                n = int(item.get("count", 0))
+            except (TypeError, ValueError):
+                continue
+            if nut not in _NUT_CLASSES or n <= 0:
+                continue
+            counts[nut] = counts.get(nut, 0) + n
+
+        if not counts:
+            raise RuntimeError(f"order combo has no valid items: {combo!r}")
+
+        if request_id:
+            self._last_request_id = request_id
+        return OrderBook(counts=counts)
