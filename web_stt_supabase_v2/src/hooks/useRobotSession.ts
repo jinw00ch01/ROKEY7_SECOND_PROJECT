@@ -150,6 +150,14 @@ export function handleRobotSessionUpdate(
     success: Boolean(session.success),
     theme: normalizeTheme(session.theme),
     error: typeof session.error === "string" ? session.error : "",
+    // robot_state / robot_target_class은 supabase_status_bridge가 픽 단계별로
+    // 갱신한다. 여기서 빠뜨리면 resolveSessionTheme이 robot_target_class를
+    // 항상 undefined로 보고 첫 견과류 색에 묶여버린다 (회귀 방지).
+    robot_state:
+      typeof session.robot_state === "string" ? session.robot_state : undefined,
+    robot_target_class: nutClasses.has(session.robot_target_class as NutClass)
+      ? (session.robot_target_class as NutClass)
+      : undefined,
     updated_at: session.updated_at,
   };
 }
