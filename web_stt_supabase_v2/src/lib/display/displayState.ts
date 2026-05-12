@@ -97,15 +97,34 @@ export function formatCombo(
   return combo.map((item) => `${item.nut} ${item.count}`).join(", ");
 }
 
+// 각 display_state에서 부제(message)로 노출할 source를 명시. session.question /
+// session.transcript는 asking/listening/transcribing 사이클에서만 의미가 있고,
+// 그 뒤(recommending/dispatching/completed)에도 row에 남아 있어서 — 가드 없이
+// fallback 체인에 넣으면 "로봇 동작 중" 상태에서도 "포만감이 어떠신가요?"가
+// 그대로 보이는 회귀가 발생한다. 그래서 상태별로 허용 source를 강하게 좁힌다.
+const QUESTION_STATES: ReadonlySet<DisplayState> = new Set([
+  "wake_detected",
+  "asking_job",
+  "listening_job",
+  "asking_satiety",
+  "listening_satiety",
+]);
+
+const TRANSCRIPT_STATES: ReadonlySet<DisplayState> = new Set([
+  "transcribing_job",
+  "transcribing_satiety",
+]);
+
+const COMBO_STATES: ReadonlySet<DisplayState> = new Set([
+  "result_ready",
+  "completed",
+]);
+
 export function getDisplayText(session: RobotSession): {
   headline: string;
   message: string;
 } {
   const fallback = DISPLAY_COPY[session.display_state] ?? DISPLAY_COPY.idle;
-  const comboMessage =
-    session.confirm_message ||
-    session.combo_text ||
-    formatCombo(session.combo, "");
 
   if (session.display_state === "error") {
     return {
@@ -114,20 +133,24 @@ export function getDisplayText(session: RobotSession): {
     };
   }
 
-  if (session.display_state === "result_ready") {
-    return {
-      headline: fallback.headline,
-      message: comboMessage || session.question || fallback.message,
-    };
+  const sources: string[] = [];
+  if (QUESTION_STATES.has(session.display_state) && session.question) {
+    sources.push(session.question);
+  }
+  if (TRANSCRIPT_STATES.has(session.display_state) && session.transcript) {
+    sources.push(session.transcript);
+  }
+  if (COMBO_STATES.has(session.display_state)) {
+    const comboMessage =
+      session.confirm_message ||
+      session.combo_text ||
+      formatCombo(session.combo, "");
+    if (comboMessage) sources.push(comboMessage);
   }
 
   return {
     headline: fallback.headline,
-    message:
-      session.question ||
-      session.transcript ||
-      comboMessage ||
-      fallback.message,
+    message: sources[0] || fallback.message,
   };
 }
 
