@@ -115,10 +115,12 @@ const TRANSCRIPT_STATES: ReadonlySet<DisplayState> = new Set([
   "transcribing_satiety",
 ]);
 
-const COMBO_STATES: ReadonlySet<DisplayState> = new Set([
-  "result_ready",
-  "completed",
-]);
+// completed는 의도적으로 빼둔다 — 빼지 않으면 부제가 result_ready의 confirm_message
+// ("직업과 포만감에 맞춰 ...를 준비해드릴게요")로 남아 headline만 "완료"로 바뀌어도
+// 부제는 그대로라 완료 신호가 시각적으로 안 뜬다. fallback DISPLAY_COPY.completed
+// ("준비가 완료되었습니다.")로 떨어지게 두면 headline + 메시지가 둘 다 바뀐다.
+// combo 정보는 StatusPanel 하단의 별도 `Combo:` 라인이 계속 보여주므로 손실 없음.
+const COMBO_STATES: ReadonlySet<DisplayState> = new Set(["result_ready"]);
 
 export function getDisplayText(session: RobotSession): {
   headline: string;
