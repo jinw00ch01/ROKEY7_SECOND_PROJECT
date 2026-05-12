@@ -448,7 +448,7 @@ def run_recommendation_flow(
         else:
             simple_prompt = get_message("ask_satiety")
             clean_simple_prompt = simple_prompt.replace("샤갈! ", "").replace("샤갈!", "").strip()
-            combined_tts_message = f"샤갈! {reasoning_message} {clean_simple_prompt}"
+            combined_tts_message = f"{reasoning_message} {clean_simple_prompt}"
 
         publish_question(simple_prompt, "asking_satiety")
         speak(combined_tts_message)
@@ -493,7 +493,7 @@ def run_recommendation_flow(
             # 최종 확인 단계도 마찬가지로 UI는 깔끔하게, 목소리는 상세하게
             simple_confirm = get_message('confirm_template', combo_text=order['combo_text'])
             clean_simple_confirm = simple_confirm.replace("샤갈! ", "").replace("샤갈!", "").strip()
-            combined_confirm_tts = f"샤갈! {satiety_reasoning} {clean_simple_confirm}"
+            combined_confirm_tts = f"{satiety_reasoning} {clean_simple_confirm}"
             
             order["confirm_message"] = simple_confirm # 화면에는 간결하게
             publish_recommendation_result(order)

@@ -6,8 +6,10 @@
 #   docs/05_clustered_nuts_handling.md의 알고리즘 명세에 대응.
 """Cluster handling: closed-gripper push to disperse clustered nuts.
 
-If the target nut has a neighbor within `cluster_dist_threshold_mm`, this
-module computes a push plan that:
+If the edge-to-edge gap between the target and its nearest neighbor is
+below `cluster_dist_threshold_mm` (gap = center distance - sum of each
+OBB's half-extent projected onto the target-neighbor line), this module
+computes a push plan that:
   1. Enters from one of two candidates perpendicular to the target-neighbor
      line, offset by `candidate_offset_mm`.
   2. Pushes the target across to (target + push_scale * (target - candidate))
@@ -67,8 +69,17 @@ def choose_cluster_plan(
     nx = float(neighbor.base_xyz.x)
     ny = float(neighbor.base_xyz.y)
     dist = math.hypot(nx - tx, ny - ty)
-    # 임계 미만이면 군집 판정. dist≈0은 dedup 미스로 보고 제외.
-    if dist >= float(cluster_dist_threshold_mm) or dist < 1e-6:
+    if dist < 1e-6:
+        # dist≈0은 dedup 미스로 보고 제외.
+        return None
+    # 군집 판정: gap = 중심거리 - 두 OBB를 연결선 방향에 투영한 반지름의 합.
+    # gap < cluster_dist_threshold_mm 이면 군집.
+    ux = (nx - tx) / dist
+    uy = (ny - ty) / dist
+    r_target = _projected_half_extent(target, ux, uy)
+    r_neighbor = _projected_half_extent(neighbor, ux, uy)
+    gap = dist - r_target - r_neighbor
+    if gap >= float(cluster_dist_threshold_mm):
         return None
 
     # 2. cluster_axis: target→neighbor 직선의 수직 단위벡터.
@@ -178,6 +189,19 @@ def _point_hits_other_box(
         if _point_in_oriented_box(x, y, d):
             return True
     return False
+
+
+def _projected_half_extent(detection, ux: float, uy: float) -> float:
+    """OBB를 단위벡터 (ux, uy) 방향에 투영한 half-width (SAT projection)."""
+    short_axis = max(1.0, float(getattr(detection, "short_axis_mm", 0.0)))
+    long_axis = max(short_axis, float(getattr(detection, "long_axis_mm", short_axis)))
+    yaw = float(getattr(detection, "grasp_yaw", 0.0))
+    c = math.cos(yaw)
+    s = math.sin(yaw)
+    return (
+        abs(long_axis * 0.5 * (c * ux + s * uy))
+        + abs(short_axis * 0.5 * (-s * ux + c * uy))
+    )
 
 
 def _point_in_oriented_box(x: float, y: float, detection) -> bool:

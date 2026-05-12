@@ -31,6 +31,7 @@ from cobot_msgs.msg import DetectedObject, DetectedObjectArray
 from .yolo_detector import YoloObbDetector
 from .detection_postprocess import DetectionAggregator
 from .model_paths import resolve_model_path
+from .dedup_thresholds import load_dedup_thresholds
 
 
 class ObjectDetectionNode(Node):
@@ -47,6 +48,13 @@ class ObjectDetectionNode(Node):
         self.declare_parameter("iou_threshold", 0.50)
         self.declare_parameter("device", "")
         self.declare_parameter("multi_frame_window_sec", 0.5)
+        # Per-class pixel-distance thresholds are loaded from
+        # cobot_config/config/dedup_thresholds.yaml. Classes missing from
+        # the YAML fall back to `cluster_distance_threshold_px` below. Set
+        # dedup_thresholds_path to override the YAML location; empty string
+        # falls back to ament-share lookup, then source-tree. Env var
+        # COBOT_DEDUP_THRESHOLDS_PATH is also honored.
+        self.declare_parameter("dedup_thresholds_path", "")
         self.declare_parameter("cluster_distance_threshold_px", 30.0)
         self.declare_parameter("color_topic", "/camera/camera/color/image_raw")
         self.declare_parameter("output_topic", "/detection/objects")
@@ -61,8 +69,16 @@ class ObjectDetectionNode(Node):
         device = device_param if device_param else None
 
         window_sec = float(self.get_parameter("multi_frame_window_sec").value)
-        cluster_dist = float(
+        cluster_dist_fallback = float(
             self.get_parameter("cluster_distance_threshold_px").value
+        )
+        dedup_path = (
+            str(self.get_parameter("dedup_thresholds_path").value).strip() or None
+        )
+        cluster_dist_by_class = load_dedup_thresholds(
+            explicit_path=dedup_path,
+            fallback_px=cluster_dist_fallback,
+            class_names=class_names,
         )
         color_topic = self.get_parameter("color_topic").value
         output_topic = self.get_parameter("output_topic").value
@@ -83,7 +99,10 @@ class ObjectDetectionNode(Node):
         )
         self._aggregator = DetectionAggregator(
             window_sec=window_sec,
-            cluster_distance_px=cluster_dist,
+            cluster_distance_px=cluster_dist_by_class,
+        )
+        self.get_logger().info(
+            f"Dedup thresholds (px): {cluster_dist_by_class}"
         )
         self._bridge = CvBridge()
 

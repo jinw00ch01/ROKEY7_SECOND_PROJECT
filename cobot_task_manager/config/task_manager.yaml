@@ -50,12 +50,12 @@
     # Return pose: release happens at this z; the action's
     # approach_offset_z_mm (default 80mm) is applied above for transit.
     # z=90 matches scripts/pick_all.py DEFAULT_RETURN_XYZ — keep in sync.
-    return_xyz_mm: [367.0, -110.0, 90.0]
+    return_xyz_mm: [367.0, -123.0, 90.0]
     return_zyz_deg: [168.0, 179.0, 168.0]
 
     # Pre-grasp gripper width = short_axis_mm + margin, clamped to [min, max].
     # Set margin < 0 to disable pre-positioning.
-    pre_grasp_margin_mm: 9.0
+    pre_grasp_margin_mm: 12.0
     pre_grasp_min_mm: 15.0
     pre_grasp_max_mm: 80.0
 
@@ -72,18 +72,19 @@
     home_service_name: "/robot/home"
 
     # Cluster handling — closed-gripper push to disperse adjacent nuts.
-    # 대상-이웃 거리가 cluster_dist_threshold_mm 미만이면 군집으로 판정해
+    # 대상-이웃 OBB 간격(gap = 중심거리 - 두 OBB의 연결선 방향 투영 반지름의 합)이
+    # cluster_dist_threshold_mm 미만이면 군집으로 판정해
     # 진입(±candidate_offset_mm) → push (-push_scale × Δ) → 홈 → 재관측.
     # docs/05_clustered_nuts_handling.md 참고.
     cluster_enabled: true
-    cluster_dist_threshold_mm: 15.0
+    cluster_dist_threshold_mm: 13.0
     cluster_candidate_offset_mm: 25.0
     cluster_push_scale: 1.5
     # push 시 z 높이 = grasp z + cluster_push_z_offset_mm.
     # grasp z = base_z + per_class_z_offset_mm (pick_offsets.yaml).
     # 양수면 grasp보다 위에서 밀어내, 닫힌 그리퍼 끝이 너트 표면을 살짝
     # 스치듯 통과시킨다.
-    cluster_push_z_offset_mm: 1.0
+    cluster_push_z_offset_mm: 3.0
     # 한 사이클(주문 처리)에서 같은 클래스에 대한 cluster push 시도 상한.
     # push 후에도 군집이 유지되면 무한 루프가 될 수 있어 cap 적용.
     max_cluster_pushes_per_class: 10

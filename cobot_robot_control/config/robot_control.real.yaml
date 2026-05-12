@@ -18,8 +18,8 @@
     home_joints_deg: [0.0, 0.0, 90.0, 0.0, 90.0, 0.0]
     approach_offset_z_mm: 80.0
 
-    velocity: 60.0
-    acceleration: 60.0
+    velocity: 120.0
+    acceleration: 100.0
     velocity_slow: 30.0
     acceleration_slow: 30.0
     grip_settle_timeout_sec: 5.0

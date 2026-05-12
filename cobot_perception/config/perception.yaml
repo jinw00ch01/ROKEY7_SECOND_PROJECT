@@ -30,6 +30,13 @@
     iou_threshold: 0.50
     device: "cuda:0"                 # "" = auto, "cpu", "cuda:0"
     multi_frame_window_sec: 0.5
+    # Per-class pixel thresholds are loaded from
+    # cobot_config/config/dedup_thresholds.yaml (shared with object detection).
+    # Set dedup_thresholds_path to override; empty falls back to ament-share
+    # then source-tree. Env var COBOT_DEDUP_THRESHOLDS_PATH is also honored.
+    # cluster_distance_threshold_px is the legacy single-value fallback used
+    # only when a class is missing from dedup_thresholds.yaml.
+    dedup_thresholds_path: ""
     cluster_distance_threshold_px: 30.0
 
     # Trigger 캡처 정책: detect_once 호출 시점 이후로 들어오는 color frame을

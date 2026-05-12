@@ -1,0 +1,23 @@
+# Per-class pixel-distance threshold for detection deduplication.
+#
+# DetectionAggregator (cobot_object_detection.detection_postprocess) fuses
+# multi-frame YOLO-OBB detections of the same class whose center-to-center
+# pixel distance is below this threshold. Smaller = less merging (better
+# separation of adjacent nuts), larger = more merging (more tolerance for
+# OBB jitter across frames).
+#
+# Tune empirically per nut size in image space. Smaller/slimmer nuts
+# (almond, pistachio) tend to false-merge when adjacent and need tighter
+# thresholds. Larger rounder nuts (walnut) tolerate looser ones.
+#
+# Used by:
+#   - cobot_object_detection/object_detection_node
+#   - cobot_perception/perception_transform_node
+#
+# Missing keys fall back to the legacy single-value
+# `cluster_distance_threshold_px` ROS parameter on each node.
+per_class_distance_threshold_px:
+  almond: 20.0
+  cashew: 25.0
+  pistachio: 20.0
+  walnut: 30.0

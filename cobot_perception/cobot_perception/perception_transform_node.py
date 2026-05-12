@@ -40,6 +40,7 @@ from sensor_msgs.msg import CameraInfo, Image
 from cobot_msgs.msg import DetectedObject, DetectedObjectArray
 from cobot_msgs.srv import DetectOnce, GetCurrentPose
 
+from cobot_object_detection.dedup_thresholds import load_dedup_thresholds
 from cobot_object_detection.detection_postprocess import DetectionAggregator
 from cobot_object_detection.model_paths import resolve_model_path
 from cobot_object_detection.yolo_detector import YoloObbDetector
@@ -90,6 +91,12 @@ class PerceptionTransformNode(Node):
         self.declare_parameter("iou_threshold", 0.50)
         self.declare_parameter("device", "")
         self.declare_parameter("multi_frame_window_sec", 0.5)
+        # Per-class pixel-distance thresholds are loaded from
+        # cobot_config/config/dedup_thresholds.yaml (shared with
+        # object_detection_node). Missing keys fall back to
+        # cluster_distance_threshold_px below. Empty dedup_thresholds_path
+        # uses ament-share lookup, then source-tree fallback.
+        self.declare_parameter("dedup_thresholds_path", "")
         self.declare_parameter("cluster_distance_threshold_px", 30.0)
 
         # Trigger 캡처 정책: 트리거 시점 이후로 들어오는 color frame을
@@ -141,8 +148,19 @@ class PerceptionTransformNode(Node):
         self._aggregator_window_sec = float(
             self.get_parameter("multi_frame_window_sec").value
         )
-        self._aggregator_cluster_px = float(
+        cluster_dist_fallback = float(
             self.get_parameter("cluster_distance_threshold_px").value
+        )
+        dedup_path = (
+            str(self.get_parameter("dedup_thresholds_path").value).strip() or None
+        )
+        self._aggregator_cluster_px = load_dedup_thresholds(
+            explicit_path=dedup_path,
+            fallback_px=cluster_dist_fallback,
+            class_names=list(self.get_parameter("class_names").value),
+        )
+        self.get_logger().info(
+            f"Dedup thresholds (px): {self._aggregator_cluster_px}"
         )
 
         # Subscribers
