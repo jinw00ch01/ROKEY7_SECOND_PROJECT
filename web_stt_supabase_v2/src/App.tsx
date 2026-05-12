@@ -132,7 +132,6 @@ export default function App() {
         />
 
         <p>Active Nut: {activeNut || "none"}</p>
-        <p>Color: {terrainColorCommand.toUpperCase()}</p>
       </div>
     </div>
   );
