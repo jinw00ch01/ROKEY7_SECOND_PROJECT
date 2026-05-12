@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   rokey7-od-container:
     build:
@@ -8,8 +6,6 @@ services:
     image: rokey7_od:latest
     container_name: rokey7_od_container
     network_mode: "host"
-    privileged: true
-    pid: "host"
     ipc: "host"
     environment:
       - DISPLAY=${DISPLAY}
@@ -20,11 +16,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=all
     volumes:
-      - .:/home/ros2_ws:rw
       - /tmp/.X11-unix:/tmp/.X11-unix:rw
-      - ${XDG_RUNTIME_DIR}/pulse/native:${XDG_RUNTIME_DIR}/pulse/native:rw
-      - ~/.config/pulse/cookie:/root/.config/pulse/cookie:rw
-      - /dev:/dev:rw
     deploy:
       resources:
         reservations:
@@ -32,9 +24,6 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu, compute, video, utility]
-    command: ["bash", "-c", "ros2 run cobot_object_detection od_node"]
+    command: ["bash", "-c", "ros2 run cobot_object_detection object_detection_node"]
     stdin_open: true
     tty: true
-
-volumes:
-  # No additional volumes required for OD only
