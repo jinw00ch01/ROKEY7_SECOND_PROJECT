@@ -1,0 +1,36 @@
+# Build artifacts (rebuilt inside image)
+build/
+install/
+log/
+
+# Heavy non-OD packages
+web_stt_firebase/
+web_stt_firebase_v2/
+web_stt_supabase_v2/
+cobot_voice/
+cobot_bringup/
+cobot_config/
+cobot_db/
+cobot_perception/
+cobot_policy/
+cobot_robot_control/
+cobot_safety/
+cobot_task_manager/
+conveyor_controller/
+nuts_data_recording/
+secrets_4_firebase_config/
+
+# Other experiment runs (we COPY the single needed weight file explicitly)
+experiments/cobot_OD_obb_small/
+
+# Docs / archives / scripts
+docs/
+scripts/
+_archive_cleanup/
+
+# Git + caches + envs
+.git/
+**/__pycache__/
+**/*.pyc
+.env
+.env.sample

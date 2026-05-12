@@ -1,0 +1,29 @@
+services:
+  rokey7-od-container:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: rokey7_od:latest
+    container_name: rokey7_od_container
+    network_mode: "host"
+    ipc: "host"
+    environment:
+      - DISPLAY=${DISPLAY}
+      - QT_X11_NO_MITSHM=1
+      - ROS_DOMAIN_ID=${ROS_DOMAIN_ID:-0}
+      - NETWORK_INTERFACE=${NETWORK_INTERFACE}
+      - USE_CYCLONE_DDS=${USE_CYCLONE_DDS:-true}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu, compute, video, utility]
+    command: ["bash", "-c", "ros2 run cobot_object_detection object_detection_node"]
+    stdin_open: true
+    tty: true
