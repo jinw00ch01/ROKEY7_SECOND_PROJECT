@@ -5,7 +5,11 @@
 //   safeUpdate는 모든 에러를 console.warn으로 흡수한다 (UI 흐름이 단발성 DB
 //   문제로 멈추면 안 됨; Firestore safeUpdate와 동일 정책).
 
-import type { RealtimeChannel } from "@supabase/supabase-js";
+import type {
+  REALTIME_SUBSCRIBE_STATES,
+  RealtimeChannel,
+  RealtimePostgresChangesPayload,
+} from "@supabase/supabase-js";
 import { SESSION_ID, SESSION_TABLE, supabase } from "../supabase";
 import type {
   CategoryId,
@@ -113,6 +117,10 @@ async function safeUpdate(fields: Record<string, unknown>): Promise<void> {
 }
 
 export async function resetSession(): Promise<void> {
+  // robot_state / robot_target_class는 supabase_status_bridge가 채우는 필드라
+  // voice flow에서는 한 번도 안 쓴 것처럼 보였지만, 비워두지 않으면 이전 사이클의
+  // walnut/task_done 같은 값이 DB에 남아 다음 dispatch 시작 시 App의
+  // resolveSessionTheme이 stale 값으로 잘못된 색을 띄운다.
   await safeUpdate({
     display_state: "idle",
     question: "",
@@ -125,6 +133,8 @@ export async function resetSession(): Promise<void> {
     success: false,
     theme: DEFAULT_THEME,
     error: "",
+    robot_state: null,
+    robot_target_class: null,
   });
 }
 
@@ -178,10 +188,14 @@ export async function publishRecommendationResult(
 export async function publishDispatching(order: SessionOrder): Promise<void> {
   // 이전 사이클의 robot_state(task_done 등)가 남아 있으면 곧바로 false-positive로
   // 잡혀버리므로 dispatch 직전에 비워둔다. status bridge가 진행에 따라
-  // detecting/picking/placing으로 덮어쓴다.
+  // detecting/picking/placing으로 덮어쓴다. robot_target_class도 같이 비워야
+  // resolveSessionTheme이 새 사이클의 첫 detect~select_target 사이에서 stale
+  // target nut(walnut 등)의 색을 끌고 가지 않는다 — 그 윈도우 동안에는 session.theme
+  // (= buildTheme(new nuts))로 fallback되도록.
   await updateDisplayState("dispatching", {
     ...orderFields(order, order.confirm_message ?? ""),
     robot_state: null,
+    robot_target_class: null,
   });
 }
 
@@ -219,14 +233,23 @@ export function waitForRobotCompletion(
           table: SESSION_TABLE,
           filter: `id=eq.${SESSION_ID}`,
         },
-        (payload) => {
-          const next = payload.new as { robot_state?: string | null };
+        (
+          payload: RealtimePostgresChangesPayload<{
+            robot_state?: string | null;
+          }>,
+        ) => {
+          // payload.new는 UPDATE 이벤트에서는 행 전체, DELETE/INSERT는 다른 shape이
+          // 라 union 타입이다. 우리는 event:"UPDATE"로 필터하므로 실제로는 UPDATE
+          // 케이스만 도착하지만, 타입 시스템은 그걸 알지 못하니 작은 cast로 좁힌다.
+          const next = (payload.new ?? null) as {
+            robot_state?: string | null;
+          } | null;
           const robotState = next?.robot_state;
           if (robotState === "task_done") finish("done");
           else if (robotState === "error") finish("error");
         },
       )
-      .subscribe((status) => {
+      .subscribe((status: REALTIME_SUBSCRIBE_STATES) => {
         if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
           console.warn("waitForRobotCompletion subscription:", status);
           finish("error");
