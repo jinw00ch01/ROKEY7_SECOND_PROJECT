@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { SceneCanvas } from "./components/SceneCanvas";
 import { StatusPanel } from "./components/StatusPanel";
 import { VoiceControls } from "./components/VoiceControls";
@@ -5,6 +6,7 @@ import { useRobotSession } from "./hooks/useRobotSession";
 import { useVoiceOrchestrator } from "./hooks/useVoiceOrchestrator";
 import {
   buildProgressIndicator,
+  findProgressIndex,
   formatCombo,
   getDisplayText,
   mapDisplayStateToSceneMode,
@@ -33,12 +35,38 @@ export default function App() {
     wakeWordSupported,
   } = useVoiceOrchestrator();
 
+  // progress bar 단조 증가용 floor. display_state가 일시적으로 어떤 step에도
+  // 속하지 않는 값(예: "error", activeIndex=-1)으로 떨어져도 누적된 바가
+  // 시각적으로 꺼지지 않도록, 사이클 안에서 도달한 최고 step을 기억한다.
+  // idle로 돌아가면 -1로 리셋해서 새 사이클의 진행이 step 0부터 다시 차오른다.
+  //
+  // useEffect로 setState하는 패턴은 effect 안의 setState 안티패턴이라 React가
+  // 경고한다. 대신 React가 권장하는 "prop 변화에 맞춰 render 중에 state 조정"
+  // 패턴: prevDisplayState를 같이 들고 다니며 변화를 감지해 setState 호출.
+  // 같은 render에서 setState한 값은 React가 즉시 다시 render할 때 반영된다.
+  const [progressFloor, setProgressFloor] = useState(-1);
+  const [trackedDisplayState, setTrackedDisplayState] = useState(
+    robotSession.display_state,
+  );
+  if (robotSession.display_state !== trackedDisplayState) {
+    setTrackedDisplayState(robotSession.display_state);
+    if (robotSession.display_state === "idle") {
+      setProgressFloor(-1);
+    } else {
+      const idx = findProgressIndex(robotSession.display_state);
+      if (idx > progressFloor) setProgressFloor(idx);
+    }
+  }
+
   const activeNut = resolveActiveNut(robotSession);
   const terrainColorCommand = getTerrainColorCommand(activeNut);
   const themeStyle = buildThemeStyle(resolveSessionTheme(robotSession));
   const sceneMode = mapDisplayStateToSceneMode(robotSession.display_state);
   const displayText = getDisplayText(robotSession);
-  const progress = buildProgressIndicator(robotSession.display_state);
+  const progress = buildProgressIndicator(
+    robotSession.display_state,
+    progressFloor,
+  );
   const transcriptDisplay = showTranscript(robotSession.transcript);
   const comboDisplay = formatCombo(robotSession.combo, robotSession.combo_text);
   const errorText = robotSession.error ? showError(robotSession.error) : "";

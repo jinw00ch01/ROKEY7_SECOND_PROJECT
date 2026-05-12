@@ -163,12 +163,21 @@ export type ProgressStep = {
   isComplete: boolean;
 };
 
+// floorIndex: 같은 사이클 안에서 이미 도달한 최고 step. progress bar는 단조
+// 증가해야 사용자가 "차례대로 채워진다"는 느낌을 받는다. 그런데 display_state
+// 만으로 매 렌더링마다 새로 계산하면, 일시적으로 인덱스가 낮은 상태로 떨어질
+// 때(예: "error"는 어느 step에도 속하지 않아 activeIndex=-1이 되어 모든 바가
+// 꺼진다) 누적된 바들이 일제히 사라진다. App.tsx에서 useState/useEffect로
+// 도달한 최고 step을 기억해 이 인자로 넘기면, 일시 회귀에도 바가 유지된다.
+// idle로 돌아갈 때 외부에서 floorIndex=-1로 리셋한다.
 export function buildProgressIndicator(
   displayState: DisplayState,
+  floorIndex: number = -1,
 ): ProgressStep[] {
-  const activeIndex = PROGRESS_STEPS.findIndex((step) =>
+  const currentIndex = PROGRESS_STEPS.findIndex((step) =>
     step.states.includes(displayState),
   );
+  const activeIndex = Math.max(currentIndex, floorIndex);
   const completedIndex =
     displayState === "completed"
       ? PROGRESS_STEPS.length - 1
@@ -179,6 +188,12 @@ export function buildProgressIndicator(
     isActive: index === activeIndex,
     isComplete: index <= completedIndex,
   }));
+}
+
+export function findProgressIndex(displayState: DisplayState): number {
+  return PROGRESS_STEPS.findIndex((step) =>
+    step.states.includes(displayState),
+  );
 }
 
 export function mapDisplayStateToSceneMode(state: DisplayState): RobotMode {
