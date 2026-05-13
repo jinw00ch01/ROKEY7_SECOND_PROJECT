@@ -23,12 +23,11 @@
 | `cobot_msgs` | 커스텀 ROS 메시지/액션 정의 |
 | `cobot_object_detection` | YOLO 기반 견과류 검출 |
 | `cobot_perception` | 카메라 ↔ 로봇 좌표 변환 및 perception 트리거 |
-| `cobot_policy` | 클러스터 처리, 추천 룰, verification/correction 루프 |
 | `cobot_robot_control` | Doosan 로봇 + RG2 그리퍼 제어 (액션 서버) |
-| `cobot_safety` | 안전 인터록 및 워크스페이스 경계 검사 |
-| `cobot_task_manager` | 주문 단위 task 오케스트레이션 |
+| `cobot_task_manager` | 주문 단위 task 오케스트레이션, verification/correction 루프 |
 | `cobot_voice` | 음성 파이프라인 (wake word, STT, TTS, 키워드 추출, 룰 엔진) |
 | `conveyor_controller` | Arduino stepper 벨트 제어 노드 |
+| `nuts_data_recording` | 견과류 캘리브레이션/데이터 수집용 레코더 |
 | `web_stt_firebase[_v2]` / `web_stt_supabase_v2` | 웹 UI (React + Vite + Three.js) |
 
 ## 빠른 실행
