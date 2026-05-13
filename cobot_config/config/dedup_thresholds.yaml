@@ -17,7 +17,8 @@
 # Missing keys fall back to the legacy single-value
 # `cluster_distance_threshold_px` ROS parameter on each node.
 per_class_distance_threshold_px:
+
   almond: 20.0
-  cashew: 25.0
+  cashew: 20.0
   pistachio: 20.0
   walnut: 30.0

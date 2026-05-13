@@ -32,18 +32,24 @@
 
 ## 빠른 실행
 
-> 워크스페이스 경로는 `~/cobot2_ws` 기준. 상세 사전 점검과 환경 변수는 `docs/03_run_manual.md` 참조.
+> 워크스페이스 경로는 `~/cobot_ws` 기준 (`src/cobot2`에 본 repo가 위치). 상세 사전 점검과 환경 변수는 `docs/03_run_manual.md` 참조.
 
 ```bash
-cd ~/cobot2_ws
+cd ~/cobot_ws
 colcon build --symlink-install
 source install/setup.bash
 
-# Firestore 경로
-ros2 launch cobot_bringup full_system.launch.py
-
-# Supabase 경로
+# Supabase 경로 (현재 기본). bringup_supabase는 full_system의 Supabase 프리셋 wrapper.
 ros2 launch cobot_bringup bringup_supabase.launch.py
+
+# Firestore 경로 (레거시 — Supabase 마이그레이션 이후 사용 안 함, 필요 시에만)
+ros2 launch cobot_bringup full_system.launch.py \
+    enable_firebase_status_bridge:=true enable_supabase_status_bridge:=false
+
+# 웹 UI는 rosbridge_websocket을 거쳐 ROS와 통신한다.
+# 별도 터미널에서:
+ros2 launch rosbridge_server rosbridge_websocket_launch.xml
+cd src/cobot2/web_stt_supabase_v2 && npm run dev
 ```
 
 ## 문서

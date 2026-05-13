@@ -49,8 +49,9 @@
 
     # Return pose: release happens at this z; the action's
     # approach_offset_z_mm (default 80mm) is applied above for transit.
-    # z=90 matches scripts/pick_all.py DEFAULT_RETURN_XYZ — keep in sync.
-    return_xyz_mm: [367.0, -123.0, 90.0]
+    # scripts/pick_all.py is a standalone test CLI with its own DEFAULT_RETURN_XYZ;
+    # it does NOT need to stay in sync with this value.
+    return_xyz_mm: [367.0, -125.0, 90.0]
     return_zyz_deg: [168.0, 179.0, 168.0]
 
     # Pre-grasp gripper width = short_axis_mm + margin, clamped to [min, max].
@@ -77,7 +78,7 @@
     # 진입(±candidate_offset_mm) → push (-push_scale × Δ) → 홈 → 재관측.
     # docs/05_clustered_nuts_handling.md 참고.
     cluster_enabled: true
-    cluster_dist_threshold_mm: 13.0
+    cluster_dist_threshold_mm: 10.0
     cluster_candidate_offset_mm: 25.0
     cluster_push_scale: 1.5
     # push 시 z 높이 = grasp z + cluster_push_z_offset_mm.
